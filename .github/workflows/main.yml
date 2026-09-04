@@ -10,28 +10,79 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Baixar arquivos
+      - name: Baixar arquivos do repositorio
         uses: actions/checkout@v4
 
-      - name: Localizar e preparar projeto Android
+      - name: Localizar e extrair o projeto Android
+        id: projeto
         shell: bash
         run: |
           set -e
+          rm -rf projeto_extraido
+          mkdir -p projeto_extraido
 
-          # Se o projeto já estiver extraído no repositório, usa ele.
-          GRADLEW=$(find "$GITHUB_WORKSPACE" -type f -name gradlew -not -path "$GITHUB_WORKSPACE/projeto/*" | head -n 1 || true)
+          ARQUIVO=""
 
-          if [ -n "$GRADLEW" ]; then
-            PROJECT_ROOT=$(dirname "$GRADLEW")
-            echo "Projeto Android já extraído: $PROJECT_ROOT"
-          else
-            # Se houver ZIP(s), testa um por um e usa o primeiro que contém gradlew.
-            rm -rf "$GITHUB_WORKSPACE/projeto"
-            mkdir -p "$GITHUB_WORKSPACE/projeto"
-            PROJECT_ROOT=""
+          # Primeiro procura os ZIPs corrigidos; depois tenta qualquer ZIP do repositorio.
+          for f in PROJETO_CORRIGIDO*.zip NOBRE_FLORESTAL_PROJETO_ANDROID_GITHUB*.zip UPA13_ANDROID_GITHUB_PRONTO*.zip *.zip; do
+            [ -f "$f" ] || continue
 
-            while IFS= read -r -d '' ZIP; do
-              echo "Testando ZIP: $ZIP"
-              rm -rf "$GITHUB_WORKSPACE/projeto"/*
+            if unzip -Z1 "$f" | grep -qE '(^|/)settings\.gradle(\.kts)?$' \
+              && unzip -Z1 "$f" | grep -qE '(^|/)app/build\.gradle(\.kts)?$'; then
+              ARQUIVO="$f"
+              break
+            fi
+          done
 
-             
+          if [ -z "$ARQUIVO" ]; then
+            echo "ERRO: nenhum ZIP com projeto Android foi encontrado."
+            echo "Arquivos ZIP existentes:"
+            find . -maxdepth 1 -type f -name '*.zip' -print
+            exit 1
+          fi
+
+          echo "Projeto encontrado em: $ARQUIVO"
+          unzip -o "$ARQUIVO" -d projeto_extraido
+
+          SETTINGS=$(find projeto_extraido -maxdepth 4 -type f \( -name settings.gradle -o -name settings.gradle.kts \) | head -n 1)
+          if [ -z "$SETTINGS" ]; then
+            echo "ERRO: settings.gradle nao encontrado depois de extrair."
+            exit 1
+          fi
+
+          RAIZ=$(dirname "$SETTINGS")
+          echo "Raiz do projeto: $RAIZ"
+          echo "root=$RAIZ" >> "$GITHUB_OUTPUT"
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar Android 35
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Configurar Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Gerar APK
+        shell: bash
+        run: |
+          cd "${{ steps.projeto.outputs.root }}"
+          gradle :app:assembleDebug --stacktrace
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NOBRE-FLORESTAL-PROJETO-APK
+          path: ${{ steps.projeto.outputs.root }}/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
