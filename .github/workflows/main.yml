@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Descompactar projeto
-        run: unzip -o UPA13_ANDROID_GITHUB_PRONTO.zip -d projeto
+        run: unzip -o NOBRE_FLORESTAL_PROJETO_ANDROID_GITHUB.zip -d projeto
 
       - name: Configurar Java 17
         uses: actions/setup-java@v4
