@@ -20,18 +20,19 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Extrair projeto
+        run: unzip -o NOBRE_FLORESTAL_PROJETO_ATUALIZADO_GITHUB.zip -d projeto
+
       - name: Dar permissão ao Gradle
         run: chmod +x gradlew
+        working-directory: projeto
 
       - name: Gerar APK
         run: ./gradlew assembleDebug
-
-      - name: Renomear APK
-        run: |
-          cp app/build/outputs/apk/debug/app-debug.apk "NOBRE FLORESTAL- PROJETO.apk"
+        working-directory: projeto
 
       - name: Enviar APK
         uses: actions/upload-artifact@v4
         with:
-          name: NOBRE FLORESTAL- PROJETO
-          path: "NOBRE FLORESTAL- PROJETO.apk"
+          name: NOBRE-FLORESTAL-PROJETO-APK
+          path: projeto/app/build/outputs/apk/debug/*.apk
