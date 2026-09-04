@@ -1,4 +1,4 @@
-name: Gerar APK UPA13
+name: Gerar APK NOBRE FLORESTAL - PROJETO
 
 on:
   workflow_dispatch:
