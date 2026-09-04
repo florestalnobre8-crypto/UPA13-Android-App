@@ -1,4 +1,4 @@
-name: Gerar APK NOBRE FLORESTAL - PROJETO
+name: Gerar APK - NOBRE FLORESTAL PROJETO
 
 on:
   workflow_dispatch:
@@ -6,37 +6,32 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
-
 jobs:
-  gerar-apk:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Baixar arquivos
+      - name: Baixar projeto
         uses: actions/checkout@v4
 
-      - name: Descompactar projeto
-        run: unzip -o NOBRE_FLORESTAL_PROJETO_ANDROID_GITHUB.zip -d projeto
-
-      - name: Configurar Java 17
+      - name: Configurar Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Configurar Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
+      - name: Dar permissão ao Gradle
+        run: chmod +x gradlew
 
       - name: Gerar APK
-        working-directory: projeto
-        run: gradle --no-daemon clean assembleDebug
+        run: ./gradlew assembleDebug
 
-      - name: Disponibilizar APK
+      - name: Renomear APK
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk "NOBRE FLORESTAL- PROJETO.apk"
+
+      - name: Enviar APK
         uses: actions/upload-artifact@v4
         with:
-          name: NOBRE-FLORESTAL-PROJETO-APK
-          path: projeto/app/build/outputs/apk/debug/app-debug.apk
+          name: NOBRE FLORESTAL- PROJETO
+          path: "NOBRE FLORESTAL- PROJETO.apk"
