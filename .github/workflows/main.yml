@@ -1,10 +1,9 @@
-name: NOBRE FLORESTAL - GERAR APK
+name: Gerar APK NOBRE FLORESTAL - PROJETO
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+  push:
+    branches: [ "main", "master" ]
 
 jobs:
   build:
@@ -14,51 +13,25 @@ jobs:
       - name: Baixar arquivos
         uses: actions/checkout@v4
 
-      - name: Descompactar projeto
+      - name: Localizar e preparar projeto Android
+        shell: bash
         run: |
-          mkdir -p projeto
-          unzip -q NOBRE_FLORESTAL_PROJETO_ATUALIZADO_GITHUB.zip -d projeto
+          set -e
 
-      - name: Configurar Java 17
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
+          # Se o projeto já estiver extraído no repositório, usa ele.
+          GRADLEW=$(find "$GITHUB_WORKSPACE" -type f -name gradlew -not -path "$GITHUB_WORKSPACE/projeto/*" | head -n 1 || true)
 
-      - name: Localizar projeto Android
-        id: localizar
-        run: |
-          GRADLEW=$(find projeto -type f -name gradlew | head -n 1)
+          if [ -n "$GRADLEW" ]; then
+            PROJECT_ROOT=$(dirname "$GRADLEW")
+            echo "Projeto Android já extraído: $PROJECT_ROOT"
+          else
+            # Se houver ZIP(s), testa um por um e usa o primeiro que contém gradlew.
+            rm -rf "$GITHUB_WORKSPACE/projeto"
+            mkdir -p "$GITHUB_WORKSPACE/projeto"
+            PROJECT_ROOT=""
 
-          if [ -z "$GRADLEW" ]; then
-            echo "ERRO: arquivo gradlew não encontrado dentro do ZIP"
-            exit 1
-          fi
+            while IFS= read -r -d '' ZIP; do
+              echo "Testando ZIP: $ZIP"
+              rm -rf "$GITHUB_WORKSPACE/projeto"/*
 
-          PASTA=$(dirname "$GRADLEW")
-
-          echo "pasta=$PASTA" >> "$GITHUB_OUTPUT"
-
-          chmod +x "$GRADLEW"
-
-      - name: Gerar APK
-        run: |
-          cd "${{ steps.localizar.outputs.pasta }}"
-          ./gradlew assembleDebug
-
-      - name: Preparar APK
-        run: |
-          APK=$(find projeto -type f -name "*.apk" | head -n 1)
-
-          if [ -z "$APK" ]; then
-            echo "ERRO: APK não encontrado"
-            exit 1
-          fi
-
-          cp "$APK" NOBRE-FLORESTAL-PROJETO.apk
-
-      - name: Salvar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: NOBRE-FLORESTAL-PROJETO
-          path: NOBRE-FLORESTAL-PROJETO.apk
+             
