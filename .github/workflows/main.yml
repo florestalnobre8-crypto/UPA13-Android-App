@@ -1,4 +1,4 @@
-name: Gerar APK - NOBRE FLORESTAL PROJETO
+          name: Gerar APK - NOBRE FLORESTAL PROJETO
 
 on:
   workflow_dispatch:
@@ -21,18 +21,44 @@ jobs:
           java-version: '17'
 
       - name: Extrair projeto
-        run: unzip -o NOBRE_FLORESTAL_PROJETO_ATUALIZADO_GITHUB.zip -d projeto
+        run: |
+          mkdir -p projeto
+          unzip -o NOBRE_FLORESTAL_PROJETO_ATUALIZADO_GITHUB.zip -d projeto
 
-      - name: Dar permissão ao Gradle
-        run: chmod +x gradlew
-        working-directory: projeto
+      - name: Localizar e preparar Gradle
+        run: |
+          GRADLEW=$(find projeto -type f -name gradlew | head -n 1)
+          echo "Gradle encontrado em: $GRADLEW"
+
+          if [ -z "$GRADLEW" ]; then
+            echo "ERRO: gradlew não encontrado"
+            find projeto -maxdepth 4 -type f
+            exit 1
+          fi
+
+          chmod +x "$GRADLEW"
+
+          GRADLE_DIR=$(dirname "$GRADLEW")
+          echo "GRADLE_DIR=$GRADLE_DIR" >> $GITHUB_ENV
 
       - name: Gerar APK
-        run: ./gradlew assembleDebug
-        working-directory: projeto
+        run: |
+          cd "$GRADLE_DIR"
+          ./gradlew assembleDebug
+
+      - name: Localizar APK
+        run: |
+          APK=$(find "$GRADLE_DIR" -type f -name "*.apk" | head -n 1)
+
+          if [ -z "$APK" ]; then
+            echo "ERRO: APK não encontrado"
+            exit 1
+          fi
+
+          cp "$APK" "NOBRE FLORESTAL- PROJETO.apk"
 
       - name: Enviar APK
         uses: actions/upload-artifact@v4
         with:
-          name: NOBRE-FLORESTAL-PROJETO-APK
-          path: projeto/app/build/outputs/apk/debug/*.apk
+          name: NOBRE-FLORESTAL-PROJETO
+          path: "NOBRE FLORESTAL- PROJETO.apk"
