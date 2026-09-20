@@ -1,0 +1,818 @@
+'use strict';
+
+const STATUS={EXPLORAR:'A EXPLORAR',CORTE:'CORTADA',NAO:'CORTE NÃO EFETUADO',ARRASTE:'ARRASTE',ROMANEADA:'ROMANEADA',SEM:'SEM SITUAÇÃO'};
+const STATUS_COLOR={[STATUS.EXPLORAR]:'#35d35f',[STATUS.CORTE]:'#ff404d',[STATUS.NAO]:'#ff8a19',[STATUS.ARRASTE]:'#8b5cf6',[STATUS.ROMANEADA]:'#2693ff',[STATUS.SEM]:'#98a49d'};
+const CLOUD_INTERVAL_MS=1000, FILE_WATCH_INTERVAL_MS=30000, PAGE_SIZE=100;
+const DEFAULT_MAP_BOUNDS={west:-56.18747860,east:-56.14036214,north:-3.24108705,south:-3.30725537};
+let mapBounds={...DEFAULT_MAP_BOUNDS};
+const ALIASES={
+  ut:['N UT','Nº UT','N° UT','UT','NR UT','NUMERO UT','NÚMERO UT'],faixa:['FAIXA','N FAIXA','Nº FAIXA','N° FAIXA'],
+  arvore:['ARVORE','ÁRVORE','N ARVORE','Nº ARVORE','N° ARVORE','NR ARVORE','NR. ARVORE','NUMERO','NÚMERO','N ARV','Nº ARV'],
+  nome:['NOME COMUM','NOME','ESPECIE','ESPÉCIE'],cap:['CAP (CM)','CAP(CM)','CAP CM','CAP'],h:['H (M)','H(M)','H M','ALTURA','ALTURA (M)'],
+  lat:['LATITUDE','LAT'],lon:['LONGITUDE','LON','LONG'],motosserrista:['MOTOSSERRISTA CORTE','MOTOSERRISTA','MOTO SERRISTA CORTE','MOTOSSERRISTA'],
+  dataCorte:['DATA DO CORTE','DATA CORTE','DATA DE CORTE','DT CORTE','DT. CORTE','DATA'],upa:['UPA','N UPA','Nº UPA','N° UPA'],bloco:['BLOCO','BLOCO OPERACIONAL','N BLOCO','Nº BLOCO','N° BLOCO'],romaneador:['ROMANEADOR','ROMANEADOR '],
+  motivoNao:['MOTIVO','OBS','OBSERVACAO','OBSERVAÇÃO','CORTE NAO EFETUADO','CORTE NÃO EFETUADO'],situacaoBase:['SITUACAO','SITUAÇÃO','STATUS','SITUACAO ARVORE','SITUAÇÃO ÁRVORE','CATEGORIA'],arrasteFlag:['ARRASTE','ARRASTADA','ARRASTADAS','DATA ARRASTE','DATA DO ARRASTE','STATUS ARRASTE','SITUACAO ARRASTE','SITUAÇÃO ARRASTE']
+};
+let allTrees=[],filteredTrees=[],currentPage=1,currentUpdatedAt=null,currentSource='',cloudTimer=null,fileWatchTimer=null,watchedFileHandle=null,watchedLastModified=0,activeScreen='home';
+let __fastSyncBusyV43=false;
+let __fastSyncLastV43=0;
+
+async function fastRefreshV43(show=false){
+  const now=Date.now();
+  if(__fastSyncBusyV43)return;
+  if(!show && now-__fastSyncLastV43<700)return;
+  if(!navigator.onLine)return;
+
+  const cfg=getSettings();
+  if(!cfg.apiUrl||!cfg.syncKey)return;
+
+  __fastSyncBusyV43=true;
+  __fastSyncLastV43=now;
+  try{
+    await refreshCloud(show);
+  }catch(e){
+    console.warn('Sincronização rápida V4.3:',e);
+  }finally{
+    __fastSyncBusyV43=false;
+  }
+}
+
+function startCloudTimer(){
+  if(cloudTimer)clearInterval(cloudTimer);
+  cloudTimer=null;
+  const cfg=getSettings();
+  if(cfg.apiUrl&&cfg.syncKey){
+    cloudTimer=setInterval(()=>fastRefreshV43(false),CLOUD_INTERVAL_MS);
+  }
+}
+
+let navTarget=null,navWatchId=null,currentGps=null,selectedTree=null,gpsTrail=[],navigationFollow=true,lastNavFitAt=0;
+let trackRecording=false,trackPoints=[],trackStartedAt=null,trackStoppedAt=null,trackDistanceMeters=0,trackWatchId=null,trackUiTimer=null;
+let projectMeta={upa:'13',bloco:'A NORTE'};
+let mapPackage={name:'mapa_upa13_bloco_norte.png',src:'mapa_upa13_bloco_norte.png',dataUrl:null,bounds:{...DEFAULT_MAP_BOUNDS},updatedAt:null};
+let mobileMaps={},activeMobileMapKey='',mobileMapMode='single',mobileCompositePackage=null,mobileCompositeSignature='';
+const MOBILE_MAP_PREF_KEY='nobre-mobile-map-pref-v40';
+
+let settingsLocked=true,mapToolsVisible=false,markerPlacementMode=false,userMapMarkers=[],compassVisible=false,currentDeviceHeading=null,trackPanelCollapsed=false,pendingMarkerGeo=null,editingMarkerId=null,longPressTimer=null,longPressTriggered=false;
+const $=id=>document.getElementById(id);
+window.__onNativeLocation=function(lat,lon,accuracy,bearingDeg,speedMps){handleGpsUpdate({lat:Number(lat),lon:Number(lon),accuracy:Number(accuracy)||0,bearing:Number(bearingDeg)||0,speed:Number(speedMps)||0})};
+window.__onNativeHeading=function(deg){const n=Number(deg);if(Number.isFinite(n)){currentDeviceHeading=((n%360)+360)%360;updateCompassUi();drawMapSoon()}};
+
+function updateMapToolsDock(){const d=$('mapToolsDock'),b=$('filterMapBtn');if(d)d.hidden=!mapToolsVisible;if(b)b.classList.toggle('active',mapToolsVisible)}
+function toggleMapToolsDock(){mapToolsVisible=!mapToolsVisible;updateMapToolsDock()}
+function updateCompassUi(){const box=$('mapCompass'),needle=$('compassNeedle'),deg=$('compassDeg'),btn=$('dockCompassBtn');if(box)box.hidden=!compassVisible;if(btn)btn.classList.toggle('active',compassVisible);const h=Number.isFinite(currentDeviceHeading)?currentDeviceHeading:(currentGps?gpsTravelBearing(currentGps):null);if(needle&&h!==null&&Number.isFinite(h))needle.style.transform=`translate(-50%,-86%) rotate(${h}deg)`;if(deg)deg.textContent=(h!==null&&Number.isFinite(h))?`${Math.round(h)}° ${cardinal(h)}`:'—'}
+function toggleCompass(){compassVisible=!compassVisible;try{localStorage.setItem('nobre-compass-visible',compassVisible?'1':'0')}catch(e){}updateCompassUi();showToast(compassVisible?'Bússola ativada.':'Bússola ocultada.')}
+function setTrackPanelCollapsed(on){trackPanelCollapsed=!!on;const panel=$('mapBottomPanel'),btn=$('trackCollapseBtn');if(panel)panel.classList.toggle('collapsed',trackPanelCollapsed);if(btn){btn.textContent=trackPanelCollapsed?'⌃':'⌄';btn.title=trackPanelCollapsed?'Abrir painel de rastreio':'Recolher painel'}setTimeout(()=>resizeMap(false),40)}
+function markerProjectKey(){return `${String(projectMeta.upa||'').trim()}|${String(projectMeta.bloco||'').trim()}`}
+function loadUserMapMarkers(){try{const raw=JSON.parse(localStorage.getItem('nobre-map-markers-v4')||'[]');userMapMarkers=Array.isArray(raw)?raw.filter(m=>m&&validCoord(Number(m.lat),Number(m.lon))).map(m=>({...m,lat:Number(m.lat),lon:Number(m.lon)})):[]}catch(e){userMapMarkers=[]}}
+function saveUserMapMarkers(){try{localStorage.setItem('nobre-map-markers-v4',JSON.stringify(userMapMarkers))}catch(e){console.warn('Não foi possível salvar marcadores',e)}}
+function currentUserMarkers(){const key=markerProjectKey();return userMapMarkers.filter(m=>(m.projectKey||key)===key)}
+function setMarkerPlacementMode(on){markerPlacementMode=!!on;const b=$('dockMarkerBtn');if(b)b.classList.toggle('active',markerPlacementMode);drawMapSoon();showToast(markerPlacementMode?'Marcador ativado. Agora toque no ponto do mapa onde quer criar o marcador.':'Modo marcador desligado.')}
+function screenToGeo(x,y){const w=mapState.imgReady?mapState.img.width:1600,h=mapState.imgReady?mapState.img.height:1200,b=mapBounds,ix=(x-mapState.offsetX)/mapState.scale,iy=(y-mapState.offsetY)/mapState.scale;return{lat:b.north-(iy/h)*(b.north-b.south),lon:b.west+(ix/w)*(b.east-b.west)}}
+function markerAtScreen(x,y,maxPx=24){const dpr=mapState.canvas?._dpr||1;let best=null,bestD=maxPx*dpr;for(const m of currentUserMarkers()){const p=imageToScreen(geoToImage(m.lat,m.lon)),d=Math.hypot(p.x-x,p.y-y);if(d<bestD){bestD=d;best=m}}return best}
+function closeDialogSafe(dlg){if(!dlg)return;try{if(dlg.open&&typeof dlg.close==='function')dlg.close()}catch(e){}if(dlg.hasAttribute('open'))dlg.removeAttribute('open')}
+function openMarkerDialogAtGeo(g,marker=null){if(!g||!validCoord(Number(g.lat),Number(g.lon)))return;pendingMarkerGeo={lat:Number(g.lat),lon:Number(g.lon)};editingMarkerId=marker?.id||null;const dlg=$('markerDialog'),input=$('markerNameInput'),del=$('markerDeleteBtn');if($('markerDialogTitle'))$('markerDialogTitle').textContent=marker?'Editar marcador':'Novo marcador';if(input)input.value=marker?.name||'';if($('markerCoordText'))$('markerCoordText').textContent=`${pendingMarkerGeo.lat.toFixed(7)}, ${pendingMarkerGeo.lon.toFixed(7)}`;if(del)del.hidden=!marker;try{if(!dlg.open)dlg.showModal()}catch(e){dlg.setAttribute('open','')};setTimeout(()=>input?.focus(),80)}
+function addUserMarkerAt(x,y){openMarkerDialogAtGeo(screenToGeo(x,y),null)}
+function editUserMarker(m){if(!m)return;openMarkerDialogAtGeo({lat:m.lat,lon:m.lon},m)}
+function saveMarkerFromDialog(){if(!pendingMarkerGeo)return;const name=String($('markerNameInput')?.value||'').trim();if(editingMarkerId){const m=userMapMarkers.find(x=>x.id===editingMarkerId);if(m){m.name=name;m.lat=pendingMarkerGeo.lat;m.lon=pendingMarkerGeo.lon}}else{userMapMarkers.push({id:`mk_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,name,lat:pendingMarkerGeo.lat,lon:pendingMarkerGeo.lon,projectKey:markerProjectKey(),createdAt:Date.now()})}saveUserMapMarkers();closeDialogSafe($('markerDialog'));pendingMarkerGeo=null;editingMarkerId=null;drawMapSoon();showToast(name?`Marcador “${name}” salvo.`:'Marcador salvo sem nome.')}
+function deleteUserMarker(m){if(!m)return;if(!confirm(`Excluir o marcador “${m.name||'Sem nome'}”?`))return;userMapMarkers=userMapMarkers.filter(x=>x.id!==m.id);saveUserMapMarkers();drawMapSoon();showToast('Marcador excluído.')}
+function deleteEditingMarker(){const m=userMapMarkers.find(x=>x.id===editingMarkerId);if(!m)return;if(!confirm(`Excluir o marcador “${m.name||'Sem nome'}”?`))return;userMapMarkers=userMapMarkers.filter(x=>x.id!==m.id);saveUserMapMarkers();closeDialogSafe($('markerDialog'));pendingMarkerGeo=null;editingMarkerId=null;drawMapSoon();showToast('Marcador excluído.')}
+function closeSettingsDialog(){setSettingsLocked(true);closeDialogSafe($('settingsDialog'))}
+function setSettingsLocked(locked){settingsLocked=!!locked;['apiUrl','syncKey'].forEach(id=>{const el=$(id);if(el)el.disabled=settingsLocked});const badge=document.querySelector('.settings-lock-badge');if(badge){badge.textContent=settingsLocked?'Bloqueado':'Editando';badge.classList.toggle('unlocked',!settingsLocked)}const save=$('saveSettingsBtn');if(save){save.disabled=false;save.textContent='Salvar alterações'}const edit=$('settingsEditBtn');if(edit)edit.textContent=settingsLocked?'✎ Editar':'✓ Bloquear'}
+
+function norm(v){return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[º°]/g,'').replace(/[^A-Z0-9]+/g,' ').trim()}
+function compact(v){return norm(v).replace(/\s+/g,' ')}
+function cleanNumKey(v){if(v===null||v===undefined||v==='')return'';return norm(String(v).trim().replace(/\.0+$/,'')).replace(/\s/g,'')}
+function firstNonEmpty(...vals){return vals.find(v=>v!==undefined&&v!==null&&String(v).trim()!=='')??''}
+function formatVal(v){return(v===undefined||v===null||String(v).trim()==='')?'-':String(v).trim()}
+function getField(row,key){const aliases=(ALIASES[key]||[]).map(compact);for(const[k,v]of Object.entries(row||{}))if(aliases.includes(compact(k)))return v;for(const[k,v]of Object.entries(row||{})){const nk=compact(k);if(aliases.some(a=>nk===a||nk.startsWith(a+' ')||a.startsWith(nk+' ')))return v}return''}
+function coord(v){if(typeof v==='number')return Number.isFinite(v)?v:null;if(v===null||v===undefined)return null;let s=String(v).trim().replace(/\s/g,'');if(!s)return null;if(s.includes(',')&&s.includes('.')){if(s.lastIndexOf(',')>s.lastIndexOf('.'))s=s.replace(/\./g,'').replace(',','.');else s=s.replace(/,/g,'')}else if(s.includes(','))s=s.replace(',','.');const n=Number(s);return Number.isFinite(n)?n:null}
+function numberVal(v){if(typeof v==='number')return Number.isFinite(v)?v:0;let s=String(v??'').trim();if(!s)return 0;s=s.replace(/\s/g,'');if(s.includes(',')&&s.includes('.')){if(s.lastIndexOf(',')>s.lastIndexOf('.'))s=s.replace(/\./g,'').replace(',','.');else s=s.replace(/,/g,'')}else if(s.includes(','))s=s.replace(',','.');const n=Number(s);return Number.isFinite(n)?n:0}
+function validCoord(lat,lon){return lat!==null&&lon!==null&&Math.abs(lat)<=90&&Math.abs(lon)<=180&&!(lat===0&&lon===0)}
+function utNumber(v){const s=cleanNumKey(v),m=s.match(/\d+/);if(!m)return null;const n=parseInt(m[0],10);return Number.isFinite(n)?n:null}
+function utKey(v){const n=utNumber(v);return n!==null?String(n):cleanNumKey(v)}
+function isTargetUt(v){const n=utNumber(v);return n!==null&&n>=1&&n<=999}
+function treeKey(row){const ut=utKey(getField(row,'ut')),arv=cleanNumKey(getField(row,'arvore'));return ut&&arv?`${ut}|${arv}`:''}
+function escapeHtml(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function formatCoord(v){return typeof v==='number'&&Number.isFinite(v)?v.toFixed(7):'-'}
+function formatDateValue(v){if(!v)return'';if(v instanceof Date&&!Number.isNaN(v.getTime()))return v.toLocaleDateString('pt-BR');if(typeof v==='number'&&window.XLSX?.SSF){try{const d=XLSX.SSF.parse_date_code(v);if(d)return `${String(d.d).padStart(2,'0')}/${String(d.m).padStart(2,'0')}/${d.y}`}catch{}}const s=String(v).trim();if(!s)return'';const d=new Date(s);if(!Number.isNaN(d.getTime())&&/[-/]/.test(s))return d.toLocaleDateString('pt-BR');return s}
+function baseClassification(row){const preferred=norm(getField(row,'situacaoBase'));const vals=[preferred,...Object.values(row||{}).map(norm)].filter(Boolean);if(vals.some(v=>v==='SUBSTITUTA'||v.includes('SUBSTITUTA')))return'SUBSTITUTA';if(vals.some(v=>v==='REMANESCENTE'||v.includes('REMANESCENTE')))return'REMANESCENTE';if(vals.some(v=>v==='EXPLORAR CAP'||v==='EXPLORAR_CAP'||v.includes('EXPLORAR CAP')))return'EXPLORAR_CAP';if(vals.some(v=>v==='EXPLORAR'))return'EXPLORAR';return preferred||''}
+function baseExploreType(row){const c=baseClassification(row);return c==='EXPLORAR_CAP'?'EXPLORAR_CAP':c==='EXPLORAR'?'EXPLORAR':''}
+function classLabel(v){const n=norm(v);if(n==='EXPLORAR CAP'||n==='EXPLORAR_CAP')return'Explorar_CAP';if(n==='EXPLORAR')return'Explorar';if(n==='SUBSTITUTA')return'Substituta';if(n==='REMANESCENTE')return'Remanescente';return String(v||'').trim()||'Sem classificação'}
+function truthyArraste(v){const n=norm(v);return !!n&&!['NAO','N','0','FALSE','FALSO','NA'].includes(n)}
+function showToast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(t._tm);t._tm=setTimeout(()=>t.hidden=true,3500)}
+function updateNetwork(){const on=navigator.onLine,p=$('networkPill');p.classList.toggle('offline',!on);p.querySelector('span').textContent=on?'Online':'Offline'}
+
+function guessHeaderRow(matrix){let best=0,bestScore=-1;const targets=[...ALIASES.ut,...ALIASES.faixa,...ALIASES.arvore,...ALIASES.nome,...ALIASES.lat,...ALIASES.lon].map(compact);for(let r=0;r<Math.min(matrix.length,40);r++){const cells=matrix[r].map(compact);let score=0;for(const c of cells)if(targets.some(t=>c===t||c.includes(t)||t.includes(c)))score++;if(score>bestScore){bestScore=score;best=r}}return best}
+function sheetToObjects(sheet){const matrix=XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',raw:true,blankrows:false});if(!matrix.length)return[];const hr=guessHeaderRow(matrix),headers=matrix[hr].map((h,i)=>String(h??'').trim()||`COL_${i+1}`),out=[];for(let i=hr+1;i<matrix.length;i++){const arr=matrix[i];if(!arr||arr.every(v=>String(v??'').trim()===''))continue;const o={};headers.forEach((h,j)=>o[h]=arr[j]??'');out.push(o)}return out}
+function findSheetName(wb,kind){const nn=wb.SheetNames.map(raw=>({raw,n:norm(raw)}));if(kind==='nao')return(nn.find(x=>x.n.includes('CORTE')&&x.n.includes('NAO'))||{}).raw;if(kind==='rom')return(nn.find(x=>x.n.includes('ROMANE'))||{}).raw;if(kind==='arraste')return(nn.find(x=>x.n.includes('ARRASTAD')||x.n.includes('ARRASTE'))||{}).raw;if(kind==='corte')return(nn.find(x=>x.n==='CORTE')||nn.find(x=>x.n.includes('CORTE')&&!x.n.includes('NAO'))||{}).raw;if(kind==='base')return(nn.find(x=>x.n.includes('IF100'))||nn.find(x=>x.n.includes('INVENT'))||{}).raw||wb.SheetNames[0];return null}
+function indexByTree(rows){const m=new Map();for(const r of rows){const k=treeKey(r);if(k&&!m.has(k))m.set(k,r)}return m}
+function ensureXlsx(){return new Promise((resolve,reject)=>{if(window.XLSX)return resolve();if(!navigator.onLine)return reject(new Error('Para importar uma planilha pela primeira vez, conecte o computador à internet. Depois os dados ficam salvos para uso offline.'));showToast('Carregando leitor de Excel...');const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';s.onload=()=>resolve();s.onerror=()=>reject(new Error('Não foi possível carregar o leitor de Excel. Verifique a internet.'));document.head.appendChild(s)})}
+async function processWorkbook(file){await ensureXlsx();showToast('Lendo a planilha...');const data=await file.arrayBuffer();try{await dbPut('lastWorkbookBlob',new Blob([data],{type:file.type||'application/octet-stream'}));await dbPut('lastWorkbookMeta',{name:file.name||'planilha',lastModified:file.lastModified||Date.now(),size:file.size||data.byteLength})}catch(e){console.warn('Não foi possível guardar o arquivo bruto',e)}const wb=XLSX.read(data,{type:'array',cellDates:true});const baseName=findSheetName(wb,'base'),corteName=findSheetName(wb,'corte'),naoName=findSheetName(wb,'nao'),arrasteName=findSheetName(wb,'arraste'),romName=findSheetName(wb,'rom');if(!baseName)throw new Error('Não encontrei a aba principal.');const base=sheetToObjects(wb.Sheets[baseName]),corte=corteName?sheetToObjects(wb.Sheets[corteName]):[],nao=naoName?sheetToObjects(wb.Sheets[naoName]):[],arraste=arrasteName?sheetToObjects(wb.Sheets[arrasteName]):[],rom=romName?sheetToObjects(wb.Sheets[romName]):[];const corteMap=indexByTree(corte),naoMap=indexByTree(nao),arrasteMap=indexByTree(arraste),romMap=indexByTree(rom);const result=[];let foraUt=0,semCoord=0;for(const r of base){if(!isTargetUt(getField(r,'ut'))){foraUt++;continue}const key=treeKey(r);if(!key)continue;const cr=corteMap.get(key),nr=naoMap.get(key),ar=arrasteMap.get(key),rr=romMap.get(key),classification=baseClassification(r),baseType=baseExploreType(r);const arrasteFlag=truthyArraste(firstNonEmpty(ar&&getField(ar,'arrasteFlag'),cr&&getField(cr,'arrasteFlag'),r&&getField(r,'arrasteFlag')));let status=(baseType?STATUS.EXPLORAR:STATUS.SEM);if(nr)status=STATUS.NAO;if(cr)status=STATUS.CORTE;if(ar||arrasteFlag)status=STATUS.ARRASTE;if(rr)status=STATUS.ROMANEADA;const lat=coord(getField(r,'lat')),lon=coord(getField(r,'lon'));if(!validCoord(lat,lon))semCoord++;result.push({key,upa:firstNonEmpty(getField(r,'upa')),bloco:firstNonEmpty(getField(r,'bloco')),ut:firstNonEmpty(getField(r,'ut')),faixa:firstNonEmpty(getField(r,'faixa')),arvore:firstNonEmpty(getField(r,'arvore')),nome:firstNonEmpty(getField(r,'nome')),cap:firstNonEmpty(getField(r,'cap')),capNum:numberVal(getField(r,'cap')),h:firstNonEmpty(getField(r,'h')),latitude:lat,longitude:lon,status,classificacao:classLabel(classification),baseExplore:!!baseType,baseExploreType:baseType,motosserrista:firstNonEmpty(cr&&getField(cr,'motosserrista'),getField(r,'motosserrista')),dataCorte:formatDateValue(firstNonEmpty(cr&&getField(cr,'dataCorte'),getField(r,'dataCorte'))),romaneador:firstNonEmpty(rr&&getField(rr,'romaneador')),motivoNao:firstNonEmpty(nr&&getField(nr,'motivoNao'))})}currentUpdatedAt=new Date().toISOString();currentSource=`${file.name} • projeto completo • ${[baseName,corteName,naoName,arrasteName,romName].filter(Boolean).join(' + ')}`;await setData(result,currentUpdatedAt,currentSource,true);await saveLocal(buildPayload());const cfg=getSettings();if(cfg.apiUrl&&cfg.syncKey)await uploadCloud();const coordOk=result.length-semCoord;showToast(`Atualizado: ${result.length.toLocaleString('pt-BR')} árvores • ${coordOk.toLocaleString('pt-BR')} com coordenadas.`)}
+
+
+function mobileMapKey(m,i=0){
+  const raw=String(m?.key||m?.fileLabel||m?.name||`MAPA ${i+1}`).trim();
+  return norm(raw)||`MAPA ${i+1}`;
+}
+function mobileMapEntries(){
+  return Object.entries(mobileMaps||{}).filter(([,m])=>m&&normalizeBounds(m.bounds)&&(m.dataUrl||m.src));
+}
+function readMobileMapPref(){
+  try{return JSON.parse(localStorage.getItem(MOBILE_MAP_PREF_KEY)||'null')}catch(_){return null}
+}
+function saveMobileMapPref(){
+  try{localStorage.setItem(MOBILE_MAP_PREF_KEY,JSON.stringify({mode:mobileMapMode,key:activeMobileMapKey}))}catch(_){}
+}
+function unionMobileBounds(entries){
+  if(!entries.length)return null;
+  let north=-90,south=90,west=180,east=-180;
+  for(const [,m] of entries){
+    const b=normalizeBounds(m.bounds);if(!b)continue;
+    north=Math.max(north,b.north);south=Math.min(south,b.south);
+    west=Math.min(west,b.west);east=Math.max(east,b.east);
+  }
+  return normalizeBounds({north,south,west,east});
+}
+function loadMobileImage(src){
+  return new Promise((resolve,reject)=>{
+    const im=new Image();
+    im.onload=()=>resolve(im);
+    im.onerror=()=>reject(new Error('Falha ao abrir mapa'));
+    im.src=src;
+  });
+}
+function mobileMapsSignature(entries){
+  return entries.map(([k,m])=>{
+    const b=normalizeBounds(m.bounds)||{};
+    return [k,m.name||'',m.updatedAt||'',b.north,b.south,b.west,b.east,(m.dataUrl||m.src||'').length].join('|');
+  }).join('||');
+}
+async function buildMobileComposite(force=false){
+  const entries=mobileMapEntries();
+  if(entries.length<2)return null;
+  const sig=mobileMapsSignature(entries);
+  if(!force&&mobileCompositePackage&&mobileCompositeSignature===sig)return mobileCompositePackage;
+
+  const bounds=unionMobileBounds(entries);
+  if(!bounds)return null;
+  const lonSpan=Math.max(1e-9,bounds.east-bounds.west);
+  const latSpan=Math.max(1e-9,bounds.north-bounds.south);
+
+  // Mais leve que no PC para manter o Android rápido e estável.
+  const longSide=3000;
+  let W,H;
+  if(lonSpan>=latSpan){W=longSide;H=Math.max(700,Math.round(longSide*latSpan/lonSpan))}
+  else{H=longSide;W=Math.max(700,Math.round(longSide*lonSpan/latSpan))}
+  const maxPixels=8_000_000;
+  if(W*H>maxPixels){
+    const f=Math.sqrt(maxPixels/(W*H));
+    W=Math.max(600,Math.round(W*f));
+    H=Math.max(600,Math.round(H*f));
+  }
+
+  const cv=document.createElement('canvas');
+  cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d',{alpha:false});
+  ctx.fillStyle='#eef3ef';ctx.fillRect(0,0,W,H);
+
+  let ok=0;
+  for(const [,m] of entries){
+    try{
+      const b=normalizeBounds(m.bounds);
+      const im=await loadMobileImage(m.dataUrl||m.src);
+      const x=(b.west-bounds.west)/lonSpan*W;
+      const y=(bounds.north-b.north)/latSpan*H;
+      const w=(b.east-b.west)/lonSpan*W;
+      const h=(b.north-b.south)/latSpan*H;
+      ctx.drawImage(im,x,y,w,h);
+      ctx.strokeStyle='rgba(5,61,39,.45)';
+      ctx.lineWidth=Math.max(2,Math.min(5,W/1300));
+      ctx.strokeRect(x,y,w,h);
+      ok++;
+    }catch(e){console.warn('Mapa não entrou no mosaico',e)}
+  }
+  if(ok<2)return null;
+
+  mobileCompositePackage={
+    name:`TODOS OS MAPAS • ${ok}`,
+    src:null,
+    dataUrl:cv.toDataURL('image/jpeg',.90),
+    bounds:{...bounds},
+    updatedAt:new Date().toISOString(),
+    multiMap:true
+  };
+  mobileCompositeSignature=sig;
+  return mobileCompositePackage;
+}
+function mobileMapLabel(key,m){
+  return m?.fileLabel||m?.name||key||'Mapa';
+}
+function updateMobileMapBadge(){
+  let badge=document.getElementById('mobileMapModeBadge');
+  const title=document.querySelector('#mapScreen .map-topbar > div:first-child');
+  if(title&&!badge){
+    badge=document.createElement('span');
+    badge.id='mobileMapModeBadge';
+    badge.className='mobile-map-mode-badge';
+    title.appendChild(badge);
+  }
+  if(!badge)return;
+  const entries=mobileMapEntries();
+  if(mobileMapMode==='all'&&entries.length>=2)badge.textContent=`🗺 ${entries.length} MAPAS`;
+  else{
+    const m=mobileMaps[activeMobileMapKey];
+    badge.textContent=m?`🗺 ${mobileMapLabel(activeMobileMapKey,m)}`:'SEM MAPA';
+  }
+}
+async function activateMobileMap(key,fit=true,savePref=true){
+  const m=mobileMaps[key];
+  if(!m)return false;
+  mobileMapMode='single';
+  activeMobileMapKey=key;
+  mapPackage={...m,bounds:{...normalizeBounds(m.bounds)}};
+  mapBounds={...mapPackage.bounds};
+  loadMapImage(mapPackage,fit);
+  if(savePref)saveMobileMapPref();
+  updateMobileMapBadge();
+  renderMobileMapList();
+  return true;
+}
+async function activateAllMobileMaps(fit=true,savePref=true){
+  const entries=mobileMapEntries();
+  if(entries.length<2){
+    if(entries.length===1)return activateMobileMap(entries[0][0],fit,savePref);
+    return false;
+  }
+  showToast(`Abrindo ${entries.length} mapas juntos...`);
+  const pkg=await buildMobileComposite(false);
+  if(!pkg){showToast('Não consegui montar os mapas juntos.');return false}
+  mobileMapMode='all';
+  mapPackage=pkg;
+  mapBounds={...pkg.bounds};
+  loadMapImage(pkg,fit);
+  if(savePref)saveMobileMapPref();
+  updateMobileMapBadge();
+  renderMobileMapList();
+  showToast(`${entries.length} mapas ativos. Funciona offline.`);
+  return true;
+}
+async function applyMobileMapsFromPayload(payload,preserveUserChoice=true){
+  const hasExplicitMaps=Array.isArray(payload?.maps);
+  const incoming=hasExplicitMaps
+    ?payload.maps
+    :(payload?.map?[payload.map]:[]);
+
+  const next={};
+  incoming.forEach((m,i)=>{
+    if(!m||!normalizeBounds(m.bounds)||!(m.dataUrl||m.src))return;
+    let key=mobileMapKey(m,i),base=key,n=2;
+    while(next[key])key=base+' '+(n++);
+    next[key]={...m,key};
+  });
+
+  // V4.1: mapas adicionados diretamente no celular não são apagados
+  // quando chegar uma nova sincronização do PC.
+  const localOnlyMaps={};
+  Object.entries(mobileMaps||{}).forEach(([k,m])=>{
+    if(m?.localOnly)localOnlyMaps[k]=m;
+  });
+
+  if(hasExplicitMaps || Object.keys(next).length){
+    mobileMaps={...next};
+    Object.entries(localOnlyMaps).forEach(([k,m])=>{
+      let key=k,base=k,n=2;
+      while(mobileMaps[key] && mobileMaps[key]?.localOnly!==true)key=base+' '+(n++);
+      mobileMaps[key]=m;
+    });
+  }
+  mobileCompositePackage=null;
+  mobileCompositeSignature='';
+
+  const entries=mobileMapEntries();
+  if(!entries.length){
+    activeMobileMapKey='';
+    mobileMapMode='single';
+    mapPackage={name:'Nenhum mapa carregado',src:null,dataUrl:null,bounds:treeBounds(.04)||{...DEFAULT_MAP_BOUNDS},updatedAt:null};
+    mapBounds={...mapPackage.bounds};
+    mapState.imgReady=false;
+    try{mapState.img.removeAttribute('src')}catch(_){}
+    updateMobileMapBadge();
+    renderMobileMapList();
+    drawMapSoon();
+    saveMobileMapPref();
+    return false;
+  }
+
+  const pref=preserveUserChoice?readMobileMapPref():null;
+  const preferredMode=pref?.mode||payload?.selectedMapMode||'single';
+  const preferredKey=(pref?.key&&mobileMaps[pref.key])
+    ?pref.key
+    :((payload?.selectedMapKey&&mobileMaps[payload.selectedMapKey])?payload.selectedMapKey:entries[0][0]);
+
+  activeMobileMapKey=preferredKey;
+  if(preferredMode==='all'&&entries.length>=2)await activateAllMobileMaps(false,false);
+  else await activateMobileMap(preferredKey,false,false);
+
+  saveMobileMapPref();
+  return true;
+}
+function renderMobileMapList(){
+  const list=$('mobileMapList');
+  if(!list)return;
+  const entries=mobileMapEntries();
+  if(!entries.length){
+    list.innerHTML='<div class="mobile-map-empty">Nenhum mapa sincronizado. Conecte à internet e toque em <b>Atualizar do PC</b>.</div>';
+    const all=$('mobileUseAllMapsBtn');if(all)all.disabled=true;
+    return;
+  }
+  const all=$('mobileUseAllMapsBtn');
+  if(all){all.disabled=entries.length<2;all.textContent=entries.length>=2?`🗺 Usar todos os mapas (${entries.length})`:'🗺 É necessário 2 mapas'}
+  list.innerHTML=entries.map(([key,m],idx)=>`
+    <div class="mobile-map-row ${mobileMapMode==='single'&&key===activeMobileMapKey?'active':''}">
+      <div class="mobile-map-row-info">
+        <strong>${idx+1}. ${escapeHtml(mobileMapLabel(key,m))}</strong>
+        <small>${m.georeferenced?'GeoPDF / georreferenciado':'Mapa'} • disponível offline ${m.localOnly?'<span class="mobile-map-local-tag">NO CELULAR</span>':''}</small>
+      </div>
+      <div class="mobile-map-row-actions">
+        <button type="button" data-mobile-map="${escapeHtml(key)}">${mobileMapMode==='single'&&key===activeMobileMapKey?'Em uso':'Usar mapa'}</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function mobileGeoPdfScore(bounds,hint){
+  if(!bounds)return 1e99;
+  const b=normalizeBounds(bounds);
+  if(!b)return 1e99;
+  const latSpan=b.north-b.south,lonSpan=b.east-b.west;
+  if(latSpan<=0||lonSpan<=0||latSpan>30||lonSpan>60)return 1e90;
+  if(!hint)return 0;
+  const aLat=(b.north+b.south)/2,aLon=(b.east+b.west)/2;
+  const hLat=(hint.north+hint.south)/2,hLon=(hint.east+hint.west)/2;
+  const overlap=!(b.east<hint.west||b.west>hint.east||b.north<hint.south||b.south>hint.north);
+  return Math.abs(aLat-hLat)+Math.abs(aLon-hLon)+(overlap?-1000:0);
+}
+function chooseAndroidPdfBoundsV41(candidates){
+  const arr=(Array.isArray(candidates)?candidates:[])
+    .map(normalizeBounds)
+    .filter(Boolean);
+  if(!arr.length)return null;
+  const hint=treeBounds(.03)||null;
+  arr.sort((a,b)=>mobileGeoPdfScore(a,hint)-mobileGeoPdfScore(b,hint));
+  return arr[0]||null;
+}
+function uniqueMobileMapKeyV41(label){
+  const base=norm(String(label||'MAPA PDF'))||'MAPA PDF';
+  let key='CELULAR '+base,n=2;
+  while(mobileMaps[key])key='CELULAR '+base+' '+(n++);
+  return key;
+}
+async function onAndroidPdfMapReadyV41(raw){
+  try{
+    const p=typeof raw==='string'?JSON.parse(raw):raw;
+    if(!p?.src)throw new Error('Imagem do PDF não recebida.');
+
+    const bounds=chooseAndroidPdfBoundsV41(p.boundsCandidates)
+      ||treeBounds(.035)
+      ||normalizeBounds(mapBounds)
+      ||{...DEFAULT_MAP_BOUNDS};
+
+    const label=String(p.name||'Mapa PDF').replace(/\.pdf$/i,'').trim()||'Mapa PDF';
+    const key=uniqueMobileMapKeyV41(label);
+
+    mobileMaps[key]={
+      key,
+      name:label+(p.georeferenced?' • GeoPDF':' • PDF'),
+      fileLabel:label,
+      src:p.src,
+      dataUrl:null,
+      bounds:{...bounds},
+      updatedAt:new Date().toISOString(),
+      georeferenced:!!p.georeferenced,
+      localOnly:true,
+      importedOnPhone:true
+    };
+
+    mobileCompositePackage=null;
+    mobileCompositeSignature='';
+    await activateMobileMap(key,true,true);
+    currentUpdatedAt=new Date().toISOString();
+    await saveLocal(buildPayload());
+    renderMobileMapList();
+    updateMobileMapBadge();
+
+    closeMobileMapDialog();
+    if(p.georeferenced){
+      showToast('GeoPDF adicionado no celular. Já pode navegar offline.');
+    }else{
+      showToast('PDF adicionado. Sem coordenadas internas; encaixei pelas árvores do projeto.');
+    }
+  }catch(e){
+    console.error(e);
+    showToast('Não consegui adicionar este PDF.');
+  }
+}
+window.onAndroidPdfMapReadyV41=onAndroidPdfMapReadyV41;
+
+function addPdfFromPhoneV41(){
+  if(window.AndroidBridge?.pickPdfMap){
+    showToast('Escolha o PDF do mapa no celular...');
+    AndroidBridge.pickPdfMap();
+    return;
+  }
+  showToast('Esta opção funciona no aplicativo Android.');
+}
+
+function openMobileMapDialog(){
+  renderMobileMapList();
+  const dlg=$('mobileMapDialog');
+  try{if(!dlg.open)dlg.showModal()}catch(_){dlg.setAttribute('open','')}
+}
+function closeMobileMapDialog(){closeDialogSafe($('mobileMapDialog'))}
+
+async function setData(data,updatedAt,source,reset=false,project=null,map=null){
+  allTrees=(Array.isArray(data)?data:[]).filter(t=>isTargetUt(t.ut));
+  currentUpdatedAt=updatedAt||null;
+  currentSource=source||'';
+  if(project&&typeof project==='object')projectMeta={...projectMeta,...project};
+  else maybeAdoptProjectMeta(allTrees,currentSource);
+
+  if(mobileMapEntries().length){
+    // Mantém a escolha offline feita no celular.
+    if(mobileMapMode==='all')await activateAllMobileMaps(false,false);
+    else if(activeMobileMapKey&&mobileMaps[activeMobileMapKey])await activateMobileMap(activeMobileMapKey,false,false);
+  }else if(map&&typeof map==='object'){
+    mapPackage={...mapPackage,...map,bounds:normalizeBounds(map.bounds)||mapBounds};
+    mapBounds={...(normalizeBounds(mapPackage.bounds)||mapBounds)};
+    loadMapImage(mapPackage,false);
+  }else{
+    maybeAdoptProjectMeta(allTrees,currentSource);
+    updateProjectUi();
+  }
+
+  if(reset)currentPage=1;
+  populateFilters();applyFilters();updateSyncStatus();renderHomeSearch();
+  updateMapBoundsInputs();drawMapSoon();updateLastWorkbookInfo();
+  updateMobileMapBadge();renderMobileMapList();
+}
+function projectTitle(){const parts=[];if(projectMeta.upa)parts.push(`UPA ${String(projectMeta.upa).replace(/^UPA\s*/i,'')}`);if(projectMeta.bloco)parts.push(`BLOCO ${String(projectMeta.bloco).replace(/^BLOCO\s*/i,'')}`);return parts.join(' • ')||'PROJETO FLORESTAL'}
+function updateProjectUi(){const title=projectTitle();['projectHeaderName','projectHeroName','projectMapName'].forEach(id=>{const e=$(id);if(e)e.textContent=title});const u=$('projectUpaInput'),b=$('projectBlockInput'),m=$('mapFileInfo');if(u&&!u.matches(':focus'))u.value=projectMeta.upa||'';if(b&&!b.matches(':focus'))b.value=projectMeta.bloco||'';if(m)m.textContent=mapPackage?.name||'Nenhum mapa carregado';document.title=`Inventário • ${title}`}
+function inferProjectFromData(data,source=''){const upas=[...new Set((data||[]).map(t=>String(t?.upa||'').trim()).filter(Boolean))];const blocos=[...new Set((data||[]).map(t=>String(t?.bloco||'').trim()).filter(Boolean))];let upa=upas.length===1?upas[0]:'';let bloco=blocos.length===1?blocos[0]:'';if(!upa){const m=String(source).match(/UPA[_\s-]*(\d+)/i);if(m)upa=m[1]}if(!bloco){const m=String(source).match(/BLOCO[_\s-]*([A-Z0-9]+(?:[_\s-]+(?:NORTE|SUL|LESTE|OESTE))?)/i);if(m)bloco=m[1].replace(/[_-]+/g,' ')}return{upa,bloco}}
+function maybeAdoptProjectMeta(data,source=''){const found=inferProjectFromData(data,source),oldUpa=String(projectMeta.upa||''),changed=oldUpa&&found.upa&&cleanNumKey(oldUpa)!==cleanNumKey(found.upa);if(found.upa)projectMeta.upa=found.upa;if(found.bloco)projectMeta.bloco=found.bloco;else if(changed)projectMeta.bloco='';if(changed){mapPackage={name:'Nenhum mapa carregado',src:null,dataUrl:null,bounds:treeBounds(0.04)||{...DEFAULT_MAP_BOUNDS},updatedAt:null};mapBounds={...mapPackage.bounds};mapState.imgReady=false}updateProjectUi()}
+function updateLabelsToggle(){const b=$('labelsToggleBtn');if(!b)return;b.classList.toggle('active',mapLabelsVisible);b.title=mapLabelsVisible?'Ocultar numeração':'Mostrar numeração';b.textContent='Nº'}
+function toggleMapLabels(){mapLabelsVisible=!mapLabelsVisible;localStorage.setItem('nobre-map-labels',mapLabelsVisible?'1':'0');updateLabelsToggle();drawMapSoon();showToast(mapLabelsVisible?'Numeração ligada.':'Numeração ocultada.')}
+function updateTreesToggle(){const b=$('treesToggleBtn');if(!b)return;b.classList.toggle('active',mapTreesVisible);b.title=mapTreesVisible?'Ocultar árvores':'Mostrar árvores';b.textContent=mapTreesVisible?'Árv':'Árv ×'}
+function toggleMapTrees(){mapTreesVisible=!mapTreesVisible;localStorage.setItem('nobre-map-trees',mapTreesVisible?'1':'0');updateTreesToggle();drawMapSoon();showToast(mapTreesVisible?'Árvores exibidas no mapa.':'Árvores ocultadas.')}
+const mapState={canvas:null,ctx:null,img:new Image(),imgReady:false,scale:1,offsetX:0,offsetY:0,minScale:.1,maxScale:16,dragging:false,lastX:0,lastY:0,moved:false,raf:0};
+function normalizeBounds(b){if(!b)return null;const north=Number(b.north),south=Number(b.south),west=Number(b.west),east=Number(b.east);if(![north,south,west,east].every(Number.isFinite)||north<=south||east<=west)return null;return{north,south,west,east}}
+function treeBounds(pad=.03){const pts=(allTrees||[]).filter(t=>validCoord(t.latitude,t.longitude));if(!pts.length)return null;let north=-90,south=90,west=180,east=-180;for(const t of pts){north=Math.max(north,t.latitude);south=Math.min(south,t.latitude);west=Math.min(west,t.longitude);east=Math.max(east,t.longitude)}let dy=Math.max(north-south,.0005),dx=Math.max(east-west,.0005);return{north:north+dy*pad,south:south-dy*pad,west:west-dx*pad,east:east+dx*pad}}
+function updateMapBoundsInputs(){const b=mapBounds;[['mapNorthInput','north'],['mapSouthInput','south'],['mapWestInput','west'],['mapEastInput','east']].forEach(([id,k])=>{const e=$(id);if(e&&!e.matches(':focus'))e.value=Number(b[k]).toFixed(8)})}
+function loadMapImage(pkg=mapPackage,fit=true){if(!pkg)return;const b=normalizeBounds(pkg.bounds);if(b){mapBounds={...b};updateMapBoundsInputs()}mapState.imgReady=false;mapState.img.onload=()=>{mapState.imgReady=true;if(fit)resizeMap(true);else drawMapSoon()};mapState.img.onerror=()=>{mapState.imgReady=false;drawMapSoon()};const src=pkg.dataUrl||pkg.src;if(src)mapState.img.src=src;else drawMapSoon();updateProjectUi()}
+function initGeoMap(){mapState.canvas=$('geoMap');mapState.ctx=mapState.canvas.getContext('2d',{alpha:false});loadMapImage(mapPackage,false);const c=mapState.canvas,activePointers=new Map();let pinch=null,longPressTimer=null,longPressFired=false,longPressStart=null;const cancelLongPress=()=>{if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null}longPressStart=null};const point=e=>({x:e.clientX,y:e.clientY}),beginPinch=()=>{cancelLongPress();if(activePointers.size<2){pinch=null;return}const[a,b]=[...activePointers.values()].slice(0,2),r=c.getBoundingClientRect(),dpr=c._dpr||1,mx=((a.x+b.x)/2-r.left)*dpr,my=((a.y+b.y)/2-r.top)*dpr,dist=Math.max(1,Math.hypot(a.x-b.x,a.y-b.y)*dpr);pinch={dist,scale:mapState.scale,ix:(mx-mapState.offsetX)/mapState.scale,iy:(my-mapState.offsetY)/mapState.scale};mapState.dragging=false;mapState.moved=true};c.addEventListener('pointerdown',e=>{e.preventDefault();c.setPointerCapture?.(e.pointerId);activePointers.set(e.pointerId,point(e));navigationFollow=false;$('myLocationBtn')?.classList.remove('tracking');longPressFired=false;if(activePointers.size===1){mapState.dragging=true;mapState.lastX=e.clientX;mapState.lastY=e.clientY;mapState.moved=false;pinch=null;const r=c.getBoundingClientRect(),dpr=c._dpr||1,x=(e.clientX-r.left)*dpr,y=(e.clientY-r.top)*dpr,m=markerAtScreen(x,y,26);if(m){longPressStart={x:e.clientX,y:e.clientY};longPressTimer=setTimeout(()=>{longPressTimer=null;longPressFired=true;mapState.moved=true;mapState.dragging=false;deleteUserMarker(m)},650)}}else if(activePointers.size===2)beginPinch()});c.addEventListener('pointermove',e=>{if(!activePointers.has(e.pointerId))return;e.preventDefault();activePointers.set(e.pointerId,point(e));if(longPressStart&&Math.hypot(e.clientX-longPressStart.x,e.clientY-longPressStart.y)>8)cancelLongPress();if(activePointers.size>=2){if(!pinch)beginPinch();const[a,b]=[...activePointers.values()].slice(0,2),r=c.getBoundingClientRect(),dpr=c._dpr||1,mx=((a.x+b.x)/2-r.left)*dpr,my=((a.y+b.y)/2-r.top)*dpr,dist=Math.max(1,Math.hypot(a.x-b.x,a.y-b.y)*dpr),next=Math.max(mapState.minScale*.08,Math.min(mapState.maxScale,pinch.scale*(dist/pinch.dist)));mapState.scale=next;mapState.offsetX=mx-pinch.ix*next;mapState.offsetY=my-pinch.iy*next;mapState.moved=true;drawMapSoon();return}if(!mapState.dragging)return;const dpr=c._dpr||1,dx=(e.clientX-mapState.lastX)*dpr,dy=(e.clientY-mapState.lastY)*dpr;if(Math.hypot(dx,dy)>2*dpr)mapState.moved=true;mapState.offsetX+=dx;mapState.offsetY+=dy;mapState.lastX=e.clientX;mapState.lastY=e.clientY;drawMapSoon()});const endPointer=e=>{const wasMulti=activePointers.size>1;activePointers.delete(e.pointerId);cancelLongPress();if(longPressFired){longPressFired=false;mapState.dragging=false;mapState.moved=true;return}if(wasMulti||pinch){pinch=null;mapState.moved=true;if(activePointers.size===1){const rem=[...activePointers.values()][0];mapState.dragging=true;mapState.lastX=rem.x;mapState.lastY=rem.y}else mapState.dragging=false;return}mapState.dragging=false;if(!mapState.moved)handleMapTap(e)};c.addEventListener('pointerup',endPointer);c.addEventListener('pointercancel',e=>{cancelLongPress();activePointers.delete(e.pointerId);pinch=null;mapState.dragging=false;mapState.moved=true});c.addEventListener('wheel',e=>{e.preventDefault();navigationFollow=false;$('myLocationBtn')?.classList.remove('tracking');zoomMap(e.deltaY<0?1.18:.84,e.offsetX,e.offsetY)},{passive:false});window.addEventListener('resize',()=>resizeMap(false))}
+function resizeMap(fit=false){const c=mapState.canvas;if(!c)return;const r=c.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);c.width=Math.max(1,Math.round(r.width*dpr));c.height=Math.max(1,Math.round(r.height*dpr));c._dpr=dpr;if(navTarget&&currentGps&&navigationFollow)fitNavigationView(true);else if(fit)fitGeoMap();else drawMapSoon()}
+function fitGeoMap(){const c=mapState.canvas;if(!c)return;if(!mapState.imgReady){const b=treeBounds(.04);if(b){mapBounds=b;mapPackage.bounds={...b}}drawMapSoon();return}const s=Math.min(c.width/mapState.img.width,c.height/mapState.img.height);mapState.scale=s;mapState.minScale=s*.55;mapState.maxScale=s*40;mapState.offsetX=(c.width-mapState.img.width*s)/2;mapState.offsetY=(c.height-mapState.img.height*s)/2;drawMapSoon()}
+function zoomMap(factor,cx,cy){const c=mapState.canvas,dpr=c._dpr||1;cx=(cx??c.clientWidth/2)*dpr;cy=(cy??c.clientHeight/2)*dpr;const old=mapState.scale,next=Math.max(mapState.minScale*.08,Math.min(mapState.maxScale,old*factor));if(next===old)return;const ix=(cx-mapState.offsetX)/old,iy=(cy-mapState.offsetY)/old;mapState.scale=next;mapState.offsetX=cx-ix*next;mapState.offsetY=cy-iy*next;drawMapSoon()}
+function geoToImage(lat,lon){const w=mapState.imgReady?mapState.img.width:1600,h=mapState.imgReady?mapState.img.height:1200,b=mapBounds;const x=(lon-b.west)/(b.east-b.west)*w,y=(b.north-lat)/(b.north-b.south)*h;return{x,y}}
+function imageToScreen(p){return{x:mapState.offsetX+p.x*mapState.scale,y:mapState.offsetY+p.y*mapState.scale}}
+function insideBounds(t){return validCoord(t.latitude,t.longitude)&&insideGeo(t.latitude,t.longitude)}
+function insideGeo(lat,lon){return Number(lon)>=mapBounds.west&&Number(lon)<=mapBounds.east&&Number(lat)<=mapBounds.north&&Number(lat)>=mapBounds.south}
+function drawMapSoon(){if(mapState.raf)return;mapState.raf=requestAnimationFrame(()=>{mapState.raf=0;drawGeoMap()})}
+function gpsTravelBearing(gps){if(Number.isFinite(currentDeviceHeading))return currentDeviceHeading;const speed=Number(gps?.speed)||0,h=Number(gps?.bearing);if(Number.isFinite(h)&&h>=0&&h<360&&(speed>.20||Math.abs(h)>.001))return h;if(gpsTrail.length>=2){const a=gpsTrail[gpsTrail.length-2],b=gpsTrail[gpsTrail.length-1];if(haversine(a,b)>=1.0)return bearing(a,b)}return null}
+function drawGpsDot(ctx,gp,gps){const dpr=mapState.canvas._dpr||1;if(Number(gps?.accuracy)>0){const dLat=Number(gps.accuracy)/111320,p2=imageToScreen(geoToImage(gps.lat+dLat,gps.lon)),r=Math.min(22*dpr,Math.max(4*dpr,Math.abs(p2.y-gp.y)));ctx.beginPath();ctx.arc(gp.x,gp.y,r,0,Math.PI*2);ctx.fillStyle='rgba(25,118,255,.05)';ctx.fill();ctx.strokeStyle='rgba(25,118,255,.18)';ctx.lineWidth=.8*dpr;ctx.stroke()}const dir=gpsTravelBearing(gps);if(dir!==null){const a=dir*Math.PI/180,fx=Math.sin(a),fy=-Math.cos(a),px=-fy,py=fx,tip=13*dpr,base=4.5*dpr,wing=3.6*dpr;ctx.beginPath();ctx.moveTo(gp.x+fx*tip,gp.y+fy*tip);ctx.lineTo(gp.x+fx*base+px*wing,gp.y+fy*base+py*wing);ctx.lineTo(gp.x+fx*base-px*wing,gp.y+fy*base-py*wing);ctx.closePath();ctx.fillStyle='#1677ff';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.25*dpr;ctx.lineJoin='round';ctx.stroke()}ctx.beginPath();ctx.arc(gp.x,gp.y,4.4*dpr,0,Math.PI*2);ctx.fillStyle='rgba(30,126,255,.14)';ctx.fill();ctx.beginPath();ctx.arc(gp.x,gp.y,2.9*dpr,0,Math.PI*2);ctx.fillStyle='#1677ff';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5*dpr;ctx.stroke()}
+function rememberGpsPoint(gps){if(!gps||!Number.isFinite(gps.lat)||!Number.isFinite(gps.lon))return;const last=gpsTrail[gpsTrail.length-1];if(!last||haversine(last,gps)>=2){gpsTrail.push({lat:gps.lat,lon:gps.lon});if(gpsTrail.length>240)gpsTrail.shift()}}
+
+/* ===== Rastreamento de percurso GPS / Shapefile ===== */
+function handleGpsUpdate(gps){
+  if(!gps||!Number.isFinite(Number(gps.lat))||!Number.isFinite(Number(gps.lon)))return;
+  currentGps={lat:Number(gps.lat),lon:Number(gps.lon),accuracy:Number(gps.accuracy)||0,bearing:Number(gps.bearing)||0,speed:Number(gps.speed)||0};
+  updateCompassUi();
+  if(trackRecording)recordTrackPoint(currentGps);
+  if(navTarget)updateNavigationFromGps(currentGps);else drawMapSoon();
+}
+function trackElapsedMs(){const end=trackRecording?Date.now():(trackStoppedAt||Date.now());return trackStartedAt?Math.max(0,end-trackStartedAt):0}
+function formatTrackDuration(ms){const total=Math.floor(ms/1000),h=Math.floor(total/3600),m=Math.floor((total%3600)/60),s=total%60;return h>0?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`}
+function formatTrackDistance(m){return m<1000?`${Math.round(m)} m`:`${(m/1000).toFixed(2)} km`}
+function updateTrackUi(){
+  const btn=$('trackToggleBtn'),hud=$('trackHud'),exp=$('trackExportBtn');if(!btn||!hud)return;
+  btn.classList.toggle('recording',trackRecording);btn.classList.toggle('has-track',!trackRecording&&trackPoints.length>1);
+  btn.innerHTML=trackRecording?'<span>■</span><b>Parar rastreio</b>':(trackPoints.length>1?'<span>▶</span><b>Novo rastreio</b>':'<span>●</span><b>Rastrear percurso</b>');
+  hud.hidden=trackPoints.length===0&&!trackRecording;hud.classList.toggle('recording',trackRecording);
+  if($('trackStatusText'))$('trackStatusText').textContent=trackRecording?'GRAVANDO PERCURSO':'ÚLTIMO PERCURSO';
+  if($('trackDistance'))$('trackDistance').textContent=formatTrackDistance(trackDistanceMeters);
+  if($('trackInfo'))$('trackInfo').textContent=`${trackPoints.length.toLocaleString('pt-BR')} pontos • ${formatTrackDuration(trackElapsedMs())}`;
+  const hd=gpsTravelBearing(currentGps),spd=Math.max(0,Number(currentGps?.speed)||0)*3.6,elapsedH=trackElapsedMs()/3600000,avg=elapsedH>0?(trackDistanceMeters/1000)/elapsedH:0;
+  if($('trackHeading'))$('trackHeading').textContent=hd===null?'—':`${Math.round(hd)}° ${cardinal(hd)}`;
+  if($('trackSpeed'))$('trackSpeed').textContent=`${spd.toFixed(1).replace('.',',')} km/h`;
+  if($('trackAvgSpeed'))$('trackAvgSpeed').textContent=`${avg.toFixed(1).replace('.',',')} km/h`;
+  if($('trackCollapseBtn'))$('trackCollapseBtn').hidden=!(trackRecording||trackPoints.length>0);
+  if(exp)exp.hidden=trackRecording||trackPoints.length<2;
+}
+function recordTrackPoint(gps){
+  if(!trackRecording||!gps)return;const now=Date.now(),p={lat:Number(gps.lat),lon:Number(gps.lon),accuracy:Number(gps.accuracy)||0,time:now};if(!validCoord(p.lat,p.lon))return;
+  const last=trackPoints[trackPoints.length-1];if(last){const d=haversine(last,p),elapsed=now-(last.time||now),minMove=Math.max(2,Math.min(6,(p.accuracy||0)*.08));if(d<minMove&&elapsed<15000)return;trackDistanceMeters+=d}
+  trackPoints.push(p);if(trackPoints.length>25000)trackPoints.shift();updateTrackUi();drawMapSoon();
+}
+function startTrackRecording(){
+  trackPoints=[];trackDistanceMeters=0;trackStartedAt=Date.now();trackStoppedAt=null;trackRecording=true;navigationFollow=false;setTrackPanelCollapsed(false);goScreen('map');
+  if(currentGps)recordTrackPoint(currentGps);updateTrackUi();if(trackUiTimer)clearInterval(trackUiTimer);trackUiTimer=setInterval(updateTrackUi,1000);
+  if(window.AndroidBridge?.startLocationUpdates){AndroidBridge.startLocationUpdates()}else if(navigator.geolocation){if(trackWatchId!==null)navigator.geolocation.clearWatch(trackWatchId);trackWatchId=navigator.geolocation.watchPosition(p=>handleGpsUpdate({lat:p.coords.latitude,lon:p.coords.longitude,accuracy:p.coords.accuracy,bearing:p.coords.heading||0,speed:p.coords.speed||0}),e=>showToast('GPS: '+e.message),{enableHighAccuracy:true,maximumAge:500,timeout:20000})}else{trackRecording=false;updateTrackUi();showToast('GPS não disponível neste aparelho.');return}
+  showToast('Rastreamento iniciado. Caminhe normalmente e depois toque em Parar rastreio.');
+}
+async function stopTrackRecording(){
+  if(!trackRecording)return;trackRecording=false;trackStoppedAt=Date.now();if(trackUiTimer){clearInterval(trackUiTimer);trackUiTimer=null}
+  if(trackWatchId!==null&&navigator.geolocation){navigator.geolocation.clearWatch(trackWatchId);trackWatchId=null}if(!navTarget&&window.AndroidBridge?.stopLocationUpdates)AndroidBridge.stopLocationUpdates();
+  updateTrackUi();drawMapSoon();try{await dbPut('lastGpsTrack',{points:trackPoints,distance:trackDistanceMeters,startedAt:trackStartedAt,stoppedAt:trackStoppedAt,project:{...projectMeta}})}catch(e){console.warn(e)}
+  showToast(trackPoints.length>1?'Rastreamento parado. Agora você pode Exportar SHP.':'Rastreamento parado, mas ainda não há pontos suficientes.');
+}
+function toggleTrackRecording(){if(trackRecording)stopTrackRecording();else startTrackRecording()}
+async function restoreLastTrack(){try{const t=await dbGet('lastGpsTrack');if(t?.points?.length>1){trackPoints=t.points.filter(p=>validCoord(Number(p.lat),Number(p.lon))).map(p=>({lat:Number(p.lat),lon:Number(p.lon),accuracy:Number(p.accuracy)||0,time:Number(p.time)||0}));trackDistanceMeters=Number(t.distance)||0;trackStartedAt=Number(t.startedAt)||null;trackStoppedAt=Number(t.stoppedAt)||null;updateTrackUi();drawMapSoon()}}catch(e){console.warn(e)}}
+function drawTrackOverlay(ctx){if(!ctx||trackPoints.length<2)return;const dpr=mapState.canvas._dpr||1;ctx.save();ctx.beginPath();trackPoints.forEach((g,i)=>{const p=imageToScreen(geoToImage(g.lat,g.lon));i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)});ctx.strokeStyle='rgba(210,45,62,.92)';ctx.lineWidth=3.5*dpr;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();ctx.restore()}
+function u8cat(parts){let n=0;for(const p of parts)n+=p.length;const out=new Uint8Array(n);let o=0;for(const p of parts){out.set(p,o);o+=p.length}return out}
+function asciiBytes(s){return new TextEncoder().encode(String(s))}
+function writeBE32(v,o,n){v.setUint32(o,n>>>0,false)}function writeLE32(v,o,n){v.setUint32(o,n>>>0,true)}function writeLE16(v,o,n){v.setUint16(o,n,true)}
+function makeShapeHeader(totalBytes,b){const a=new ArrayBuffer(100),v=new DataView(a);writeBE32(v,0,9994);writeBE32(v,24,totalBytes/2);writeLE32(v,28,1000);writeLE32(v,32,3);v.setFloat64(36,b.xmin,true);v.setFloat64(44,b.ymin,true);v.setFloat64(52,b.xmax,true);v.setFloat64(60,b.ymax,true);v.setFloat64(68,0,true);v.setFloat64(76,0,true);v.setFloat64(84,0,true);v.setFloat64(92,0,true);return new Uint8Array(a)}
+function buildShpFiles(points){
+  const pts=points.filter(p=>validCoord(Number(p.lat),Number(p.lon)));if(pts.length<2)throw new Error('São necessários pelo menos 2 pontos.');
+  const xs=pts.map(p=>Number(p.lon)),ys=pts.map(p=>Number(p.lat)),b={xmin:Math.min(...xs),ymin:Math.min(...ys),xmax:Math.max(...xs),ymax:Math.max(...ys)};
+  const contentBytes=48+pts.length*16,total=100+8+contentBytes,shp=new Uint8Array(total);shp.set(makeShapeHeader(total,b),0);let v=new DataView(shp.buffer);writeBE32(v,100,1);writeBE32(v,104,contentBytes/2);writeLE32(v,108,3);v.setFloat64(112,b.xmin,true);v.setFloat64(120,b.ymin,true);v.setFloat64(128,b.xmax,true);v.setFloat64(136,b.ymax,true);writeLE32(v,144,1);writeLE32(v,148,pts.length);writeLE32(v,152,0);let o=156;for(const p of pts){v.setFloat64(o,Number(p.lon),true);v.setFloat64(o+8,Number(p.lat),true);o+=16}
+  const shx=new Uint8Array(108);shx.set(makeShapeHeader(108,b),0);v=new DataView(shx.buffer);writeBE32(v,100,50);writeBE32(v,104,contentBytes/2);return{shp,shx};
+}
+function fixedUtf8(text,width,alignRight=false){let b=asciiBytes(text);if(b.length>width)b=b.slice(0,width);const out=new Uint8Array(width);out.fill(32);out.set(b,alignRight?width-b.length:0);return out}
+function buildDbf(meta){
+  const fields=[['NOME','C',36,0],['INICIO','C',19,0],['FIM','C',19,0],['DIST_M','N',12,1],['PONTOS','N',8,0],['UPA','C',10,0],['BLOCO','C',20,0]];const recLen=1+fields.reduce((a,f)=>a+f[2],0),headLen=32+fields.length*32+1,out=new Uint8Array(headLen+recLen+1),v=new DataView(out.buffer),d=new Date();out[0]=3;out[1]=d.getFullYear()-1900;out[2]=d.getMonth()+1;out[3]=d.getDate();writeLE32(v,4,1);writeLE16(v,8,headLen);writeLE16(v,10,recLen);let off=32;for(const [name,type,len,dec] of fields){const nb=asciiBytes(name).slice(0,11);out.set(nb,off);out[off+11]=type.charCodeAt(0);out[off+16]=len;out[off+17]=dec;off+=32}out[off]=13;off=headLen;out[off++]=32;
+  const vals=[meta.name,meta.start,meta.end,Number(meta.distance||0).toFixed(1),String(meta.points||0),meta.upa||'',meta.bloco||''];for(let i=0;i<fields.length;i++){const [_,type,len]=fields[i],b=fixedUtf8(vals[i],len,type==='N');out.set(b,off);off+=len}out[off]=26;return out
+}
+let crcTable=null;function crc32(bytes){if(!crcTable){crcTable=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1);crcTable[n]=c>>>0}}let c=0xffffffff;for(const b of bytes)c=crcTable[(c^b)&255]^(c>>>8);return(c^0xffffffff)>>>0}
+function zipStore(files){const locals=[],centrals=[];let offset=0;for(const f of files){const name=asciiBytes(f.name),data=f.data instanceof Uint8Array?f.data:new Uint8Array(f.data),crc=crc32(data),lh=new Uint8Array(30+name.length),lv=new DataView(lh.buffer);writeLE32(lv,0,0x04034b50);writeLE16(lv,4,20);writeLE16(lv,6,0);writeLE16(lv,8,0);writeLE32(lv,14,crc);writeLE32(lv,18,data.length);writeLE32(lv,22,data.length);writeLE16(lv,26,name.length);lh.set(name,30);locals.push(lh,data);const ch=new Uint8Array(46+name.length),cv=new DataView(ch.buffer);writeLE32(cv,0,0x02014b50);writeLE16(cv,4,20);writeLE16(cv,6,20);writeLE16(cv,8,0);writeLE16(cv,10,0);writeLE32(cv,16,crc);writeLE32(cv,20,data.length);writeLE32(cv,24,data.length);writeLE16(cv,28,name.length);writeLE32(cv,42,offset);ch.set(name,46);centrals.push(ch);offset+=lh.length+data.length}const cd=u8cat(centrals),end=new Uint8Array(22),ev=new DataView(end.buffer);writeLE32(ev,0,0x06054b50);writeLE16(ev,8,files.length);writeLE16(ev,10,files.length);writeLE32(ev,12,cd.length);writeLE32(ev,16,offset);return u8cat([...locals,cd,end])}
+function bytesToBase64(bytes){let bin='';for(let i=0;i<bytes.length;i+=0x8000)bin+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(bin)}
+function localStamp(ts){const d=new Date(ts||Date.now()),p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`}
+async function exportTrackShapefile(){
+  if(trackPoints.length<2){showToast('Faça um rastreamento com pelo menos 2 pontos antes de exportar.');return}try{const base=`NOBRE_RASTREIO_${localStamp(trackStartedAt)}`,shape=buildShpFiles(trackPoints),fmt=t=>t?new Date(t).toLocaleString('pt-BR'):'',dbf=buildDbf({name:`Nobre ${projectMeta.upa?('UPA '+projectMeta.upa):'Rastreio'}`,start:fmt(trackStartedAt),end:fmt(trackStoppedAt||Date.now()),distance:trackDistanceMeters,points:trackPoints.length,upa:projectMeta.upa||'',bloco:projectMeta.bloco||''}),prj=asciiBytes('GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]'),cpg=asciiBytes('UTF-8'),zip=zipStore([{name:base+'.shp',data:shape.shp},{name:base+'.shx',data:shape.shx},{name:base+'.dbf',data:dbf},{name:base+'.prj',data:prj},{name:base+'.cpg',data:cpg}]),file=base+'.zip';
+    if(window.AndroidBridge?.shareBase64File){AndroidBridge.shareBase64File(file,'application/zip',bytesToBase64(zip));showToast('Abrindo compartilhamento do SHP...')}else{const url=URL.createObjectURL(new Blob([zip],{type:'application/zip'})),a=document.createElement('a');a.href=url;a.download=file;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);showToast('SHP exportado em arquivo ZIP.')}
+  }catch(e){console.error(e);showToast('Não foi possível exportar o SHP: '+e.message)}
+}
+/* ===== fim rastreamento ===== */
+function drawAvenzaPin(ctx,p,color='#e53935'){const dpr=mapState.canvas._dpr||1,s=dpr;ctx.save();ctx.translate(p.x,p.y);ctx.beginPath();ctx.moveTo(0,0);ctx.bezierCurveTo(-2.5*s,-4.2*s,-8.2*s,-10.2*s,-8.2*s,-15.8*s);ctx.arc(0,-15.8*s,8.2*s,Math.PI,0,false);ctx.bezierCurveTo(8.2*s,-10.2*s,2.5*s,-4.2*s,0,0);ctx.closePath();ctx.fillStyle=color;ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.7*s;ctx.lineJoin='round';ctx.stroke();ctx.beginPath();ctx.arc(0,-15.8*s,3.1*s,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.restore()}
+function drawGeoMap(){const c=mapState.canvas,ctx=mapState.ctx;if(!c||!ctx)return;ctx.fillStyle='#edf2ef';ctx.fillRect(0,0,c.width,c.height);if(mapState.imgReady)ctx.drawImage(mapState.img,mapState.offsetX,mapState.offsetY,mapState.img.width*mapState.scale,mapState.img.height*mapState.scale);else{ctx.fillStyle='#d8e4dc';ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle='#214b36';ctx.font=`${16*(c._dpr||1)}px Arial`;ctx.textAlign='center';ctx.fillText('Adicione o mapa deste projeto no computador',c.width/2,c.height/2)}const pts=mapTrees(),mapped=pts.filter(insideBounds),counts={};for(const t of mapped)counts[t.status]=(counts[t.status]||0)+1;if($('mapCount'))$('mapCount').textContent=`${mapped.length.toLocaleString('pt-BR')} árvores do plano • ${(counts[STATUS.EXPLORAR]||0).toLocaleString('pt-BR')} A explorar`;const baseR=Math.max(1.6,Math.min(4.8,mapState.scale/Math.max(mapState.minScale,.0001)*1.55));const zr=mapState.scale/Math.max(mapState.minScale,.0001);for(const t of pts){if(!insideBounds(t))continue;const p=imageToScreen(geoToImage(t.latitude,t.longitude));if(p.x<-8||p.x>c.width+8||p.y<-8||p.y>c.height+8)continue;ctx.beginPath();ctx.arc(p.x,p.y,baseR,0,Math.PI*2);ctx.fillStyle=STATUS_COLOR[t.status]||STATUS_COLOR[STATUS.SEM];ctx.fill();ctx.lineWidth=Math.max(1,c._dpr||1)*.55;ctx.strokeStyle='rgba(255,255,255,.9)';ctx.stroke();if(mapLabelsVisible&&zr>=(isAndroidApp()?2.15:3.0)){ctx.font=`${Math.max(9,Math.min(15,9*zr/3.0))*(c._dpr||1)}px Arial`;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.lineWidth=3*(c._dpr||1);ctx.strokeStyle='rgba(255,255,255,.96)';ctx.fillStyle='#063c25';const label=String(t.arvore??'');ctx.strokeText(label,p.x,p.y-baseR-2*(c._dpr||1));ctx.fillText(label,p.x,p.y-baseR-2*(c._dpr||1))}}for(const m of currentUserMarkers()){if(!validCoord(m.lat,m.lon))continue;const mp=imageToScreen(geoToImage(m.lat,m.lon));drawAvenzaPin(ctx,mp,'#e53935');const label=String(m.name||'').trim();if(label){const dpr=c._dpr||1;ctx.font=`${11*dpr}px Arial`;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.lineWidth=3*dpr;ctx.strokeStyle='rgba(255,255,255,.95)';ctx.fillStyle='#8b1d17';ctx.strokeText(label,mp.x,mp.y-20*dpr);ctx.fillText(label,mp.x,mp.y-20*dpr)}}drawTrackOverlay(ctx);if(gpsTrail.length>1){ctx.beginPath();gpsTrail.forEach((g,i)=>{const p=imageToScreen(geoToImage(g.lat,g.lon));i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)});ctx.strokeStyle='rgba(22,119,255,.65)';ctx.lineWidth=3*(c._dpr||1);ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke()}if(navTarget&&validCoord(navTarget.latitude,navTarget.longitude)){const tp=imageToScreen(geoToImage(navTarget.latitude,navTarget.longitude));if(currentGps&&validCoord(currentGps.lat,currentGps.lon)){const gp=imageToScreen(geoToImage(currentGps.lat,currentGps.lon));ctx.save();ctx.beginPath();ctx.moveTo(gp.x,gp.y);ctx.lineTo(tp.x,tp.y);ctx.setLineDash([]);ctx.strokeStyle='rgba(22,119,255,.9)';ctx.lineWidth=3*(c._dpr||1);ctx.stroke();ctx.restore();drawGpsDot(ctx,gp,currentGps)}}else if(currentGps&&validCoord(currentGps.lat,currentGps.lon)){drawGpsDot(ctx,imageToScreen(geoToImage(currentGps.lat,currentGps.lon)),currentGps)}}
+function handleMapTap(e){
+  const c=mapState.canvas,r=c.getBoundingClientRect(),dpr=c._dpr||1,x=(e.clientX-r.left)*dpr,y=(e.clientY-r.top)*dpr;
+  const existingMarker=markerAtScreen(x,y,26);
+  if(existingMarker){editUserMarker(existingMarker);return}
+  if(markerPlacementMode){addUserMarkerAt(x,y);return}
+  let best=null,bestD=14*dpr;
+  for(const t of mapTrees()){
+    if(!insideBounds(t))continue;
+    const p=imageToScreen(geoToImage(t.latitude,t.longitude)),d=Math.hypot(p.x-x,p.y-y);
+    if(d<bestD){bestD=d;best=t}
+  }
+  if(best){
+    if(navTarget&&navTarget!==best){
+      if(navWatchId!==null&&navigator.geolocation){navigator.geolocation.clearWatch(navWatchId);navWatchId=null}
+      navTarget=null;gpsTrail=[];navigationFollow=false;$('navHud').hidden=true;$('myLocationBtn')?.classList.remove('tracking')
+    }
+    selectedTree=null;
+    showTree(best);
+    return
+  }
+  if(selectedTree){
+    if(navTarget===selectedTree)stopOfflineNavigation();
+    else{selectedTree=null;drawMapSoon()}
+  }
+  toggleMapToolsDock();
+}
+
+function focusOnTree(t,zoom=6){if(!validCoord(t.latitude,t.longitude)){showToast('Coordenada inválida.');return}const c=mapState.canvas,p=geoToImage(t.latitude,t.longitude),target=Math.min(mapState.maxScale,Math.max(mapState.minScale,mapState.minScale*zoom));mapState.scale=target;mapState.offsetX=c.width/2-p.x*target;mapState.offsetY=c.height/2-p.y*target;drawMapSoon()}
+function fitNavigationView(force=false){if(!navTarget||!currentGps||!mapState.canvas)return;const now=Date.now();if(!force&&now-lastNavFitAt<1200)return;lastNavFitAt=now;const c=mapState.canvas,dpr=c._dpr||1,a=geoToImage(currentGps.lat,currentGps.lon),b=geoToImage(navTarget.latitude,navTarget.longitude),dx=Math.max(Math.abs(a.x-b.x),45),dy=Math.max(Math.abs(a.y-b.y),45),padX=60*dpr,padY=95*dpr;let scale=Math.min((c.width-padX*2)/dx,(c.height-padY*2)/dy,mapState.maxScale);if(haversine(currentGps,{lat:navTarget.latitude,lon:navTarget.longitude})<80)scale=Math.min(mapState.maxScale,Math.max(scale,mapState.minScale*9));scale=Math.max(mapState.minScale*.08,scale);mapState.scale=scale;const midX=(a.x+b.x)/2,midY=(a.y+b.y)/2;mapState.offsetX=c.width/2-midX*scale;mapState.offsetY=c.height/2-midY*scale;drawMapSoon()}
+function centerGps(){navigationFollow=true;$('myLocationBtn')?.classList.add('tracking');if(!currentGps){requestGpsOnce();return}if(navTarget){fitNavigationView(true);return}const fake={latitude:currentGps.lat,longitude:currentGps.lon};focusOnTree(fake,8)}
+function updateNavigationFromGps(gps){if(!navTarget||!gps)return;rememberGpsPoint(gps);const target={lat:navTarget.latitude,lon:navTarget.longitude},d=haversine(gps,target),b=bearing(gps,target);$('navDistance').textContent=d<1000?`${Math.round(d)} m`:`${(d/1000).toFixed(2)} km`;$('navBearing').textContent=`Rumo ${Math.round(b)}° ${cardinal(b)} • GPS ±${Math.round(gps.accuracy||0)} m`;$('navArrow').style.transform=`rotate(${b}deg)`;if(navigationFollow)fitNavigationView(false);else drawMapSoon();if(d<=12&&$('mapHint'))$('mapHint').textContent=`Chegando à Árvore ${formatVal(navTarget.arvore)} • ${Math.round(d)} m`}
+function requestGpsOnce(){if(window.AndroidBridge?.requestLocationOnce){AndroidBridge.requestLocationOnce();return}if(!navigator.geolocation){showToast('GPS não disponível neste aparelho.');return}navigator.geolocation.getCurrentPosition(p=>{handleGpsUpdate({lat:p.coords.latitude,lon:p.coords.longitude,accuracy:p.coords.accuracy,bearing:p.coords.heading||0,speed:p.coords.speed||0});centerGps()},e=>showToast('Não foi possível obter sua localização: '+e.message),{enableHighAccuracy:true,timeout:20000,maximumAge:1000})}
+function haversine(a,b){const R=6371000,toRad=x=>x*Math.PI/180,dLat=toRad(b.lat-a.lat),dLon=toRad(b.lon-a.lon),la1=toRad(a.lat),la2=toRad(b.lat),h=Math.sin(dLat/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+function bearing(a,b){const toRad=x=>x*Math.PI/180,toDeg=x=>x*180/Math.PI,p1=toRad(a.lat),p2=toRad(b.lat),dl=toRad(b.lon-a.lon),y=Math.sin(dl)*Math.cos(p2),x=Math.cos(p1)*Math.sin(p2)-Math.sin(p1)*Math.cos(p2)*Math.cos(dl);return(toDeg(Math.atan2(y,x))+360)%360}
+function cardinal(b){return['N','NE','L','SE','S','SO','O','NO'][Math.round(b/45)%8]}
+function startOfflineNavigation(t){if(!validCoord(t.latitude,t.longitude)){showToast('Árvore sem coordenada válida.');return}navTarget=t;selectedTree=null;gpsTrail=[];navigationFollow=true;$('myLocationBtn')?.classList.add('tracking');goScreen('map');$('navHud').hidden=false;if($('mapHint'))$('mapHint').textContent=`Destino: Árvore ${formatVal(t.arvore)} • UT ${formatVal(t.ut)}`;if(navWatchId!==null&&navigator.geolocation){navigator.geolocation.clearWatch(navWatchId);navWatchId=null}if(currentGps)setTimeout(()=>fitNavigationView(true),100);else setTimeout(()=>focusOnTree(t,5),100);if(window.AndroidBridge?.startLocationUpdates){AndroidBridge.startLocationUpdates();showToast('Navegação GPS offline ativada.');return}if(!navigator.geolocation){showToast('GPS não disponível.');return}navWatchId=navigator.geolocation.watchPosition(p=>handleGpsUpdate({lat:p.coords.latitude,lon:p.coords.longitude,accuracy:p.coords.accuracy,bearing:p.coords.heading||0,speed:p.coords.speed||0}),e=>showToast('GPS: '+e.message),{enableHighAccuracy:true,maximumAge:500,timeout:20000})}
+function stopOfflineNavigation(){if(navWatchId!==null&&navigator.geolocation){navigator.geolocation.clearWatch(navWatchId);navWatchId=null}if(!trackRecording&&window.AndroidBridge?.stopLocationUpdates)AndroidBridge.stopLocationUpdates();navTarget=null;selectedTree=null;gpsTrail=[];navigationFollow=false;$('myLocationBtn')?.classList.remove('tracking');$('navHud').hidden=true;if($('mapHint'))$('mapHint').textContent='Árvores do plano • cores pela situação • arraste para mover';drawMapSoon()}
+
+function goScreen(name){activeScreen=name;document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.querySelectorAll('.bottom-nav [data-go]').forEach(b=>b.classList.toggle('active',b.dataset.go===name));const map={home:'homeScreen',map:'mapScreen',trees:'treesScreen'};$(map[name]||'homeScreen').classList.add('active');if(name==='map')setTimeout(()=>resizeMap(true),60);if(name==='trees')renderTreeList()}
+function openFilters(){renderFilterCount();$('filterDialog').showModal()}
+function clearFilters(){['utFilter','faixaFilter','statusFilter','motoFilter'].forEach(id=>$(id).value='');currentPage=1;applyFilters()}
+
+async function updateLastWorkbookInfo(){const e=$('lastWorkbookInfo');if(!e)return;try{const m=await dbGet('lastWorkbookMeta');if(m?.name){const d=m.lastModified?new Date(m.lastModified):null;const when=d&&!Number.isNaN(d.getTime())?d.toLocaleString('pt-BR'):'';e.textContent=`${m.name}${when?' • '+when:''}`;return}}catch{}if(currentSource)e.textContent=currentSource.split(' • ')[0]+' • dados salvos';else e.textContent='Nenhuma planilha importada ainda'}
+function getSettings(){
+  try{
+    const manual=JSON.parse(localStorage.getItem('nobre-inventario-settings')||'{}')||{};
+    const auto=JSON.parse(localStorage.getItem('nobre-auto-sync-v42')||'{}')||{};
+    return {
+      apiUrl:auto.apiUrl||manual.apiUrl||'',
+      syncKey:auto.syncKey||manual.syncKey||''
+    };
+  }catch{return{}}
+}
+function applyAutoSyncConfigV42(cfg){
+  if(!cfg?.apiUrl||!cfg?.syncKey)return false;
+  try{
+    localStorage.setItem('nobre-auto-sync-v42',JSON.stringify({
+      apiUrl:String(cfg.apiUrl).trim(),
+      syncKey:String(cfg.syncKey).trim(),
+      updatedAt:cfg.updatedAt||new Date().toISOString()
+    }));
+    // Mantém compatibilidade com as versões anteriores do app.
+    localStorage.setItem('nobre-inventario-settings',JSON.stringify({
+      apiUrl:String(cfg.apiUrl).trim(),
+      syncKey:String(cfg.syncKey).trim()
+    }));
+    const u=$('apiUrl'),k=$('syncKey');
+    if(u)u.value=String(cfg.apiUrl).trim();
+    if(k)k.value=String(cfg.syncKey).trim();
+    updateAutoSyncStatusV42();
+    startCloudTimer();
+    return true;
+  }catch(e){console.warn(e);return false}
+}
+function updateAutoSyncStatusV42(){
+  const e=$('autoSyncStatusV42');
+  if(!e)return;
+  const c=getSettings();
+  if(c.apiUrl&&c.syncKey){
+    e.textContent=`Conectado automaticamente • ${c.syncKey}`;
+  }else{
+    e.textContent='Aguardando a configuração automática enviada pelo PC.';
+  }
+}
+function saveSettings(){
+  closeSettingsDialog();
+}
+function openSettings(){
+  const c=getSettings();
+  if($('apiUrl'))$('apiUrl').value=c.apiUrl||'';
+  if($('syncKey'))$('syncKey').value=c.syncKey||'';
+  updateProjectUi();
+  updateMapBoundsInputs();
+  updateAutoSyncStatusV42();
+  $('settingsDialog').showModal();
+}
+function buildPayload(){
+  return{
+    schemaVersion:43,
+    updatedAt:currentUpdatedAt||new Date().toISOString(),
+    source:currentSource,
+    project:{...projectMeta},
+    map:mapPackage?{name:mapPackage.name||'',src:mapPackage.dataUrl?null:(mapPackage.src||null),dataUrl:mapPackage.dataUrl||null,bounds:{...mapBounds},updatedAt:mapPackage.updatedAt||null}:null,
+    maps:mobileMapEntries().map(([key,m])=>({...m,key})),
+    selectedMapKey:activeMobileMapKey,
+    selectedMapMode:mobileMapMode,
+    syncConfig:(()=>{const c=getSettings();return c.apiUrl&&c.syncKey?{apiUrl:c.apiUrl,syncKey:c.syncKey,auto:true}:null})(),
+    data:allTrees
+  }
+}
+function readBoundsInputs(){const b={north:Number($('mapNorthInput')?.value),south:Number($('mapSouthInput')?.value),west:Number($('mapWestInput')?.value),east:Number($('mapEastInput')?.value)};return normalizeBounds(b)}
+function autoFitMapBounds(){const b=treeBounds(.035);if(!b){showToast('Não há coordenadas válidas para encaixar.');return}mapBounds={...b};if(mapPackage)mapPackage.bounds={...b};updateMapBoundsInputs();loadMapImage(mapPackage,true);showToast('Limites ajustados pelas árvores. Se precisar, refine os quatro valores.')}
+function fileToDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||''));r.onerror=()=>reject(r.error||new Error('Falha ao ler imagem'));r.readAsDataURL(file)})}
+function inferProjectFromMapName(name=''){const out={};const u=String(name).match(/UPA[_\s-]*(\d+)/i);if(u)out.upa=u[1];const b=String(name).match(/BLOCO[_\s-]*([A-Z0-9]+(?:[_\s-]+(?:NORTE|SUL|LESTE|OESTE))?)/i);if(b)out.bloco=b[1].replace(/[_-]+/g,' ');return out}
+async function handleMapImageFile(file){if(!file)return;try{showToast('Carregando mapa...');const dataUrl=await fileToDataUrl(file),fromName=inferProjectFromMapName(file.name);if(fromName.upa)projectMeta.upa=fromName.upa;if(fromName.bloco)projectMeta.bloco=fromName.bloco;const b=treeBounds(.035)||mapBounds;mapPackage={name:file.name||'mapa_do_projeto',src:null,dataUrl,bounds:{...b},updatedAt:new Date().toISOString()};mapBounds={...b};loadMapImage(mapPackage,true);updateProjectUi();updateMapBoundsInputs();showToast('Mapa carregado. Confira o encaixe e clique em Salvar projeto e enviar aos celulares.')}catch(e){console.error(e);showToast('Não foi possível carregar o mapa.') }}
+async function saveProjectMapSettings(){const b=readBoundsInputs();if(!b){showToast('Confira os limites Norte, Sul, Oeste e Leste.');return}projectMeta.upa=$('projectUpaInput')?.value.trim()||projectMeta.upa||'';projectMeta.bloco=$('projectBlockInput')?.value.trim()||'';mapBounds={...b};if(!mapPackage)mapPackage={name:'Nenhum mapa carregado',src:null,dataUrl:null,bounds:{...b}};mapPackage.bounds={...b};mapPackage.updatedAt=new Date().toISOString();currentUpdatedAt=new Date().toISOString();updateProjectUi();loadMapImage(mapPackage,true);await saveLocal(buildPayload());updateSyncStatus();const cfg=getSettings();if(cfg.apiUrl&&cfg.syncKey&&navigator.onLine){await uploadCloud();showToast('Projeto, mapa e árvores enviados aos celulares.')}else showToast('Projeto salvo neste computador. Configure a sincronização para enviar ao celular.')}
+function openDb(){return new Promise((resolve,reject)=>{const r=indexedDB.open('NobreInventarioGeo',2);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('cache'))r.result.createObjectStore('cache')};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
+async function saveLocal(payload){try{const db=await openDb();await new Promise((res,rej)=>{const tx=db.transaction('cache','readwrite');tx.objectStore('cache').put(payload,'dataset');tx.oncomplete=res;tx.onerror=()=>rej(tx.error)});db.close()}catch(e){console.warn(e)}}
+async function loadLocal(){try{const db=await openDb();const v=await new Promise((res,rej)=>{const tx=db.transaction('cache','readonly'),r=tx.objectStore('cache').get('dataset');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});db.close();return v}catch{return null}}
+async function dbPut(key,value){try{const db=await openDb();await new Promise((res,rej)=>{const tx=db.transaction('cache','readwrite');tx.objectStore('cache').put(value,key);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)});db.close();return true}catch{return false}}
+async function dbGet(key){try{const db=await openDb();const v=await new Promise((res,rej)=>{const tx=db.transaction('cache','readonly'),r=tx.objectStore('cache').get(key);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});db.close();return v}catch{return null}}
+async function chooseWatchedFile(){if(!window.showOpenFilePicker){showToast('Vínculo automático disponível no Chrome/Edge do computador.');return}try{const[handle]=await window.showOpenFilePicker({multiple:false,types:[{description:'Planilha Excel',accept:{'application/vnd.ms-excel':['.xls'],'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx','.xlsm']}}]});watchedFileHandle=handle;await dbPut('watchedFileHandle',handle);const file=await handle.getFile();watchedLastModified=file.lastModified||0;await dbPut('watchedLastModified',watchedLastModified);await processWorkbook(file);startFileWatcher();showToast('Planilha vinculada. Alterações serão verificadas automaticamente.')}catch(e){if(e?.name!=='AbortError')showToast('Não foi possível vincular a planilha.')}}
+async function restoreWatchedFile(){if(!window.showOpenFilePicker)return;watchedFileHandle=await dbGet('watchedFileHandle');watchedLastModified=Number(await dbGet('watchedLastModified')||0);if(watchedFileHandle)startFileWatcher()}
+function startFileWatcher(){clearInterval(fileWatchTimer);if(watchedFileHandle)fileWatchTimer=setInterval(checkWatchedFile,FILE_WATCH_INTERVAL_MS)}
+async function checkWatchedFile(){if(!watchedFileHandle)return;try{if(watchedFileHandle.queryPermission){const p=await watchedFileHandle.queryPermission({mode:'read'});if(p!=='granted')return}const file=await watchedFileHandle.getFile();if((file.lastModified||0)>watchedLastModified){watchedLastModified=file.lastModified||Date.now();await dbPut('watchedLastModified',watchedLastModified);showToast('Alteração detectada. Atualizando...');await processWorkbook(file)}}catch(e){console.warn(e)}}
+async function gzipToBase64(obj){const text=JSON.stringify(obj);if(typeof CompressionStream==='undefined')return{encoding:'plain',payload:text};const stream=new Blob([text]).stream().pipeThrough(new CompressionStream('gzip')),buf=await new Response(stream).arrayBuffer(),bytes=new Uint8Array(buf);let bin='';for(let i=0;i<bytes.length;i+=0x8000)bin+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return{encoding:'gzip-base64',payload:btoa(bin)}}
+async function decodeCloud(wrapper){if(wrapper.encoding==='plain')return JSON.parse(wrapper.payload);if(wrapper.encoding==='gzip-base64'){const bin=atob(wrapper.payload),bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);if(typeof DecompressionStream==='undefined')throw new Error('Este aparelho não suporta descompactação.');const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));return JSON.parse(await new Response(stream).text())}throw new Error('Formato desconhecido')}
+async function uploadCloud(){const cfg=getSettings();if(!cfg.apiUrl||!cfg.syncKey||!allTrees.length||!navigator.onLine)return;showToast('Enviando projeto, mapa e árvores para o celular...');try{const payload=buildPayload(),packed=await gzipToBase64(payload);await fetch(cfg.apiUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:cfg.syncKey,updatedAt:payload.updatedAt,encoding:packed.encoding,payload:packed.payload})});showToast('Projeto enviado para sincronização.')}catch(e){console.error(e);showToast('Falha ao enviar para a nuvem.')}}
+function jsonp(url,params){return new Promise((resolve,reject)=>{const cb='nobre_cb_'+Date.now()+'_'+Math.floor(Math.random()*99999),s=document.createElement('script'),tm=setTimeout(()=>{cleanup();reject(new Error('tempo esgotado'))},30000),cleanup=()=>{clearTimeout(tm);delete window[cb];s.remove()};window[cb]=d=>{cleanup();resolve(d)};const u=new URL(url);Object.entries({...params,callback:cb}).forEach(([k,v])=>u.searchParams.set(k,v));s.src=u.toString();s.onerror=()=>{cleanup();reject(new Error('erro de rede'))};document.body.appendChild(s)})}
+async function refreshCloud(show=true,afterHandoff=false){
+  const cfg=getSettings();
+  if(!cfg.apiUrl||!cfg.syncKey){
+    if(show)showToast('Aguardando configuração automática do PC.');
+    updateAutoSyncStatusV42();
+    return;
+  }
+  if(!navigator.onLine){
+    if(show)showToast('Sem internet. Seus mapas continuam disponíveis offline.');
+    return;
+  }
+  try{
+    const r=await jsonp(cfg.apiUrl,{key:cfg.syncKey});
+    if(!r?.ok||!r.payload){
+      if(show)showToast('Ainda não há atualização enviada pelo PC.');
+      return;
+    }
+
+    const decoded=await decodeCloud({encoding:r.encoding,payload:r.payload});
+
+    // V4.2: o PC passa a URL e a chave automaticamente.
+    const oldCfg=getSettings();
+    const gotConfig=applyAutoSyncConfigV42(decoded?.syncConfig);
+    const newCfg=getSettings();
+    const configChanged=gotConfig && (
+      oldCfg.apiUrl!==newCfg.apiUrl || oldCfg.syncKey!==newCfg.syncKey
+    );
+
+    // Handoff: se o PC mudou URL/chave, o celular aprende a nova configuração
+    // pelo endereço antigo e já reconecta sozinho.
+    if(decoded?.handoff===true && configChanged && !afterHandoff){
+      if(show)showToast('Nova configuração recebida do PC. Reconectando...');
+      return await refreshCloud(show,true);
+    }
+
+    const hasData=Array.isArray(decoded?.data)&&decoded.data.length;
+    if(!hasData){
+      updateAutoSyncStatusV42();
+      if(show)showToast('Configuração do PC recebida.');
+      return;
+    }
+
+    const remote=r.updatedAt?new Date(r.updatedAt).getTime():0;
+    const local=currentUpdatedAt?new Date(currentUpdatedAt).getTime():0;
+    if(remote>local||!allTrees.length||!mobileMapEntries().length||configChanged){
+      await applyMobileMapsFromPayload(decoded,true);
+      await setData(decoded.data,decoded.updatedAt,decoded.source||'Nuvem PC ↔ celular',true,decoded.project||null,null);
+      if(decoded.syncConfig)applyAutoSyncConfigV42(decoded.syncConfig);
+      await saveLocal(buildPayload());
+      updateAutoSyncStatusV42();
+      if(show)showToast(`${mobileMapEntries().length} mapa(s) e árvores atualizados automaticamente.`);
+    }else if(show){
+      updateAutoSyncStatusV42();
+      showToast('Você já está com a versão mais recente.');
+    }
+  }catch(e){
+    console.warn(e);
+    if(show)showToast('Não foi possível buscar a atualização.');
+  }
+}
+async function loadBundledInitial(){const p=window.__NOBRE_INITIAL_DATA__;if(!p?.data?.length)return false;await applyMobileMapsFromPayload(p,false).then(()=>setData(p.data,p.updatedAt,p.source||'APP INVENTARIO(3).xls',true,p.project||null,null));await saveLocal(buildPayload());return true}
+function bindEvents(){
+  window.addEventListener('online',()=>{updateNetwork();fastRefreshV43(false)});window.addEventListener('offline',updateNetwork);
+  window.addEventListener('focus',()=>fastRefreshV43(false));
+  window.addEventListener('pageshow',()=>fastRefreshV43(false));
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)fastRefreshV43(false)});
+  if($('autoSyncNowBtnV42'))$('autoSyncNowBtnV42').onclick=async e=>{e.preventDefault();await fastRefreshV43(true);updateAutoSyncStatusV42()};
+  if($('mobileMapPickerBtn'))$('mobileMapPickerBtn').onclick=openMobileMapDialog;
+  if($('mobileAddPdfBtn'))$('mobileAddPdfBtn').onclick=e=>{e.preventDefault();addPdfFromPhoneV41()};
+  if($('mobileMapCloseBtn'))$('mobileMapCloseBtn').onclick=e=>{e.preventDefault();closeMobileMapDialog()};
+  if($('mobileUseAllMapsBtn'))$('mobileUseAllMapsBtn').onclick=async e=>{e.preventDefault();await activateAllMobileMaps(true,true);closeMobileMapDialog()};
+  if($('mobileRefreshMapsBtn'))$('mobileRefreshMapsBtn').onclick=async e=>{e.preventDefault();await fastRefreshV43(true);renderMobileMapList()};
+  if($('mobileMapList'))$('mobileMapList').addEventListener('click',async e=>{
+    const b=e.target.closest('[data-mobile-map]');if(!b)return;
+    e.preventDefault();
+    await activateMobileMap(b.dataset.mobileMap,true,true);
+    closeMobileMapDialog();
+    showToast('Mapa escolhido. Continua disponível offline.');
+  });
+  document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>goScreen(b.dataset.go));
+  $('syncBtn').onclick=()=>refreshCloud(true);$('navSync').onclick=()=>refreshCloud(true);$('settingsBtn').onclick=openSettings;$('navMore').onclick=openSettings;document.querySelectorAll('.close-modal').forEach(btn=>btn.onclick=e=>{e.preventDefault();const dlg=btn.closest('dialog');if(dlg?.id==='settingsDialog')closeSettingsDialog();else closeDialogSafe(dlg)});const scb=$('settingsCloseBtn');if(scb){scb.onclick=e=>{e.preventDefault();e.stopPropagation();closeSettingsDialog()};scb.addEventListener('pointerup',e=>{e.preventDefault();e.stopPropagation();closeSettingsDialog()})}const mcx=$('markerCancelX'),mcb=$('markerCancelBtn');[mcx,mcb].forEach(b=>{if(b)b.onclick=e=>{e.preventDefault();closeDialogSafe($('markerDialog'));pendingMarkerGeo=null;editingMarkerId=null}});if($('markerSaveBtn'))$('markerSaveBtn').onclick=e=>{e.preventDefault();saveMarkerFromDialog()};if($('markerDeleteBtn'))$('markerDeleteBtn').onclick=e=>{e.preventDefault();deleteEditingMarker()};
+  $('filterMapBtn').onclick=openFilters;$('filterTreesBtn').onclick=openFilters;$('applyFiltersBtn').onclick=()=>{$('filterDialog').close();currentPage=1;applyFilters()};$('clearFiltersBtn').onclick=e=>{e.preventDefault();clearFilters()};
+  $('homeTreeSearch').addEventListener('input',renderHomeSearch);$('homeTreeClear').onclick=()=>{$('homeTreeSearch').value='';renderHomeSearch();$('homeTreeSearch').focus()};
+  const ms=$('mapTreeSearch'),mb=$('mapTreeSearchBtn');if(mb)mb.onclick=findAndOpenMapTree;if(ms)ms.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();findAndOpenMapTree()}});
+  const lb=$('labelsToggleBtn');if(lb)lb.onclick=toggleMapLabels;const tb=$('treesToggleBtn');if(tb)tb.onclick=toggleMapTrees;updateTreesToggle();
+  $('searchInput').addEventListener('input',()=>{currentPage=1;$('clearSearch').hidden=!$('searchInput').value;applyFilters()});$('clearSearch').onclick=()=>{$('searchInput').value='';$('clearSearch').hidden=true;currentPage=1;applyFilters()};
+  $('statusChips').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;document.querySelectorAll('#statusChips button').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('statusFilter').value=b.dataset.status;currentPage=1;applyFilters()});
+  $('prevPage').onclick=()=>{if(currentPage>1){currentPage--;renderTreeList();scrollTo(0,0)}};$('nextPage').onclick=()=>{const p=Math.ceil(filteredTrees.length/PAGE_SIZE);if(currentPage<p){currentPage++;renderTreeList();scrollTo(0,0)}};
+  $('closeTreeDialog').onclick=()=>$('treeDialog').close();if($('trackToggleBtn'))$('trackToggleBtn').onclick=toggleTrackRecording;if($('trackExportBtn'))$('trackExportBtn').onclick=exportTrackShapefile;$('fitMapBtn').onclick=()=>{navigationFollow=false;$('myLocationBtn')?.classList.remove('tracking');fitGeoMap()};if($('zoomIn'))$('zoomIn').onclick=()=>{navigationFollow=false;$('myLocationBtn')?.classList.remove('tracking');zoomMap(1.35)};if($('zoomOut'))$('zoomOut').onclick=()=>{navigationFollow=false;$('myLocationBtn')?.classList.remove('tracking');zoomMap(.74)};$('myLocationBtn').onclick=centerGps;$('locateQuick').onclick=()=>{goScreen('map');setTimeout(centerGps,100)};$('stopNavBtn').onclick=stopOfflineNavigation;const fm=$('filterMapBtn');if(fm)fm.onclick=toggleMapToolsDock;const dockMap={dockMarkerBtn:()=>setMarkerPlacementMode(!markerPlacementMode),dockLabelBtn:toggleMapLabels,dockTrackBtn:toggleTrackRecording,dockExportBtn:exportTrackShapefile,dockFitBtn:()=>{navigationFollow=false;$('myLocationBtn')?.classList.remove('tracking');fitGeoMap()},dockCompassBtn:toggleCompass,dockTargetBtn:()=>{if(currentGps){navigationFollow=true;drawMapSoon();centerGps()}else requestGpsOnce()}};Object.entries(dockMap).forEach(([id,fn])=>{const el=$(id);if(el)el.onclick=fn});const tcb=$('trackCollapseBtn');if(tcb)tcb.onclick=()=>setTrackPanelCollapsed(!trackPanelCollapsed);
+  $('saveSettingsBtn').onclick=e=>{e.preventDefault();saveSettings()};$('refreshCloudBtn').onclick=e=>{e.preventDefault();refreshCloud(true)};$('watchFileBtn').onclick=e=>{e.preventDefault();chooseWatchedFile()};const seb=$('settingsEditBtn');if(seb)seb.onclick=e=>{e.preventDefault();if(settingsLocked)setSettingsLocked(false);else setSettingsLocked(true)};
+  const importIt=e=>{e?.preventDefault();$('excelFile').click()};$('importBtn').onclick=importIt;$('importQuick').onclick=importIt;$('excelFile').addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;try{await processWorkbook(f)}catch(err){console.error(err);showToast('Erro ao ler a planilha: '+err.message)}finally{e.target.value=''}});
+  const mapImport=$('mapImportBtn'),mapInput=$('mapImageFile'),autoFit=$('autoFitBoundsBtn'),saveMap=$('saveProjectMapBtn');if(mapImport)mapImport.onclick=e=>{e.preventDefault();mapInput?.click()};if(mapInput)mapInput.addEventListener('change',async e=>{const f=e.target.files?.[0];if(f)await handleMapImageFile(f);e.target.value=''});if(autoFit)autoFit.onclick=e=>{e.preventDefault();autoFitMapBounds()};if(saveMap)saveMap.onclick=e=>{e.preventDefault();saveProjectMapSettings()};
+}
+async function boot(){
+  if(isAndroidApp())document.documentElement.classList.add('android-app');
+  try{
+    if(!localStorage.getItem('nobre-marker-v4-clean')){
+      ['nobre-map-markers-v1','nobre-map-markers-v2','nobre-map-markers-v3'].forEach(k=>localStorage.removeItem(k));
+      localStorage.setItem('nobre-marker-v4-clean','1')
+    }
+    compassVisible=localStorage.getItem('nobre-compass-visible')==='1'
+  }catch(e){}
+  loadUserMapMarkers();
+  bindEvents();
+  updateCompassUi();
+  setTrackPanelCollapsed(false);
+  updateNetwork();
+  updateLabelsToggle();
+  initGeoMap();
+
+  if(loadPreviewData()){goScreen('home');return}
+
+  const local=await loadLocal();
+  if(local?.schemaVersion>=2&&local?.data?.length){
+    if(local.syncConfig)applyAutoSyncConfigV42(local.syncConfig);
+    await applyMobileMapsFromPayload(local,true);
+    await setData(local.data,local.updatedAt,local.source,false,local.project||null,null);
+  }else{
+    await loadBundledInitial();
+  }
+
+  await restoreWatchedFile();
+  startCloudTimer();
+  const cfg=getSettings();
+  if(cfg.apiUrl&&cfg.syncKey&&navigator.onLine)fastRefreshV43(false);
+  renderKpis();updateProjectUi();updateMapBoundsInputs();updateLastWorkbookInfo();
+  await restoreLastTrack();
+  updateMobileMapBadge();
+  updateAutoSyncStatusV42();
+  goScreen('home');
+}
+boot();

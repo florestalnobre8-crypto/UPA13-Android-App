@@ -1,0 +1,15 @@
+NOBRE FLORESTAL ANDROID — V4.3 SINCRONIZAÇÃO IMEDIATA
+
+BASE: V4.2 aprovada.
+
+MUDANÇA:
+- Quando estiver online, o celular verifica atualização do PC a cada 1 segundo.
+- Ao abrir ou voltar para o aplicativo, verifica imediatamente.
+- Ao reconectar à internet, verifica imediatamente.
+- Existe trava para não fazer várias consultas ao mesmo tempo.
+- URL e chave continuam automáticas pelo PC.
+- PDF direto no celular e mapas offline continuam funcionando.
+- Produção e Evolução continuam somente no PC.
+
+Na prática, depois que o PC terminar de enviar os dados, o celular deve atualizar em cerca de 1 a 2 segundos,
+dependendo da internet e do tempo de resposta do Apps Script.
