@@ -1,290 +1,884 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-  <meta name="theme-color" content="#062d1d">
-  <title>Inventário</title>
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=43">
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PAINEL FLORESTAL</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#071426;color:#eef5ff;font-family:Arial,sans-serif}
+header{padding:18px 24px;background:#0b1d33;border-bottom:1px solid #29415d}
+h1{margin:0;font-size:24px}.sub{color:#9fb0c5;margin-top:5px}
+nav{display:flex;gap:8px;flex-wrap:wrap;padding:14px 24px;background:#091a2d;position:sticky;top:0;z-index:5}
+nav button{border:0;border-radius:9px;padding:12px 18px;background:#17324f;color:white;font-weight:bold;cursor:pointer}
+nav button.active{background:#6d28d9}
+main{padding:20px;max-width:1250px;margin:auto}.page{display:none}.page.active{display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.card{background:#102943;border:1px solid #1d4164;border-radius:12px;padding:16px}.label{color:#9fb0c5;font-size:13px}.value{font-size:25px;font-weight:bold;margin-top:8px}
+.section{margin:20px 0 10px;font-size:18px;font-weight:bold}
+.upload{border:2px dashed #3b5f80;border-radius:12px;padding:20px;text-align:center;margin-top:20px}
+input{margin-top:10px}.ok{color:#72e6a5}.warn{color:#ffd166}
+table{width:100%;border-collapse:collapse;margin-top:10px}th,td{padding:9px;border-bottom:1px solid #24415e;text-align:left}th{color:#b9c8d8}
+.small{font-size:13px;color:#9fb0c5}
+@media(max-width:600px){h1{font-size:19px}nav button{flex:1;padding:10px 7px;font-size:12px}main{padding:12px}}
+</style>
+
+<style id="approved-v6">
+:root{--bg:#041426;--panel:#082b47;--panel2:#0b3554;--line:#145176;--purple:#842cff;--green:#08d675;--text:#f4f8ff;--muted:#9eb8d0}
+body{background:radial-gradient(circle at 45% 0,#073251 0,#041426 45%,#020d19 100%);color:var(--text);font-family:Arial,Helvetica,sans-serif}
+header{background:linear-gradient(90deg,#042039,#04192e);border-bottom:1px solid #123a58;padding:16px 28px}header h1{font-size:25px}header .sub{color:#a9c4da}
+nav{background:#04192e;padding:10px 22px;gap:12px;border-bottom:1px solid #0d3552}nav button{background:#07304d;border:1px solid #145176;border-radius:7px;padding:11px 18px;font-weight:800}nav button.active{background:linear-gradient(135deg,#9b35ff,#7022ee);box-shadow:0 0 18px #7c28ff44}
+main{max-width:1450px;margin:auto;padding:20px 28px}.section{font-size:21px;font-weight:900;margin:18px 0 10px}.grid{gap:12px}.card,#derruba .panel,#derruba .chart-panel,#derruba .podium-list,#derruba .podium-info{background:linear-gradient(135deg,#092a46,#083553);border:1px solid #145176;border-radius:10px;box-shadow:0 8px 24px #0003;padding:16px}.label{color:#b9cee0;font-weight:800}.value{font-size:30px;font-weight:900}.small{color:#a8c0d4}.geral-kpis{grid-template-columns:repeat(4,1fr)!important}.acc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}.acc{display:flex;flex-direction:column;gap:8px;padding:12px;border-top:1px solid #1c587d}.acc b{font-size:18px}.acc small{color:#91abc1}
+#derruba .purplebar{background:linear-gradient(90deg,#842cff,#5f20df);border-radius:6px;padding:8px 10px;margin-top:12px}#derruba .kpi{border-radius:9px;background:#092d49}.detail,#ddDetails{display:none!important}
+#motorista .section:nth-of-type(3),#mRank{display:none!important}
+table{border-collapse:separate;border-spacing:0;width:100%;overflow:hidden;border-radius:8px}th{background:#0a3a5d!important;color:#d9eaff!important}td,th{border-color:#174967!important;padding:9px!important}
+.upload{border:1px dashed #8c7a63!important;background:#071d2f!important;border-radius:10px!important;margin-top:18px!important;text-align:center}.sync-approved{border:1px dashed #8c7a63;background:#071d2f;border-radius:10px;padding:14px;margin-top:12px;text-align:center}.sync-approved input{width:min(720px,75%);padding:7px}.sync-approved button{padding:8px 14px;border:0;border-radius:5px;font-weight:800}
+.geral-volume{font-size:26px!important}.rom-counts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.rom-counts>div{background:#072943;border:1px solid #155476;border-radius:9px;padding:11px;display:flex;flex-direction:column;gap:4px}.rom-counts span{font-size:12px;font-weight:900;color:#b9cee0}.rom-counts b{font-size:22px}.rom-counts small{color:#91abc1}.chart-scroll{overflow-x:auto}.chart-scroll svg{min-width:900px}#derruba .podium-list,#derruba .podium-info{padding:12px!important}#derruba .place{font-size:13px!important;padding:10px 12px!important;border-radius:6px}#derruba .place b{font-size:15px;color:#62ef8c}#derruba .info-row{font-size:12px!important;padding:8px!important}#derruba .purplebar{background:linear-gradient(90deg,#8f2cff,#6c20ed)!important;color:#fff!important;font-size:12px!important}@media(max-width:800px){header{padding:14px 16px}header h1{font-size:20px}main{padding:14px}.geral-kpis{grid-template-columns:repeat(2,1fr)!important}.acc-grid{grid-template-columns:1fr}.upload,.sync-approved{display:none!important}.value{font-size:24px}nav{overflow-x:auto;white-space:nowrap;padding:9px}nav button{flex:0 0 auto}.grid{grid-template-columns:1fr 1fr!important}}
+</style>
+
+<style id="v8-typography">
+/* V8 — tipografia proporcional em todas as abas */
+.value{font-size:26px!important;line-height:1.08!important}
+.section{font-size:21px!important}
+.label{font-size:13px!important}.small{font-size:12px!important}
+#romaneio .value,#motorista .value,#skider .value{font-size:25px!important}
+#derruba .kpi .kv{font-size:16px!important}
+#derruba .dash-title{font-size:19px!important}
+@media(max-width:800px){.value{font-size:21px!important}.section{font-size:18px!important}}
+</style>
+
+<style>
+/* V9: gráficos de linha navegáveis e sempre abertos no último dia */
+#dailyChart,#sDailyChart,#gSkiderDaily{overflow-x:auto!important;overflow-y:hidden;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;touch-action:pan-x pan-y;}
+#dailyChart svg,#sDailyChart svg,#gSkiderDaily svg{max-width:none!important;display:block;}
+</style>
+
+<style id="v11-final-approved">
+/* Ajustes finais aprovados */
+#derruba .podium{grid-template-columns:1fr 1fr!important;align-items:stretch}
+#derruba .podium-list,#derruba .podium-info{min-height:230px!important;padding:18px!important}
+#derruba .place{font-size:16px!important;padding:16px 18px!important;margin-bottom:10px!important}
+#derruba .place b{font-size:20px!important}
+#derruba .info-row{font-size:15px!important;padding:16px 10px!important}
+#workerChart svg,#speciesChart svg,#sSkiderOverallChart svg{width:100%;height:auto}
+#sSkiderOverallChart{padding:22px!important}
+#motorista .grid{grid-template-columns:repeat(6,1fr)!important}
+#motorista .card{overflow-x:auto}
+.ut-toggle{cursor:pointer}.ut-detail{display:none}.ut-detail.open{display:table-row-group}
+@media(max-width:900px){#motorista .grid{grid-template-columns:repeat(2,1fr)!important}}
+</style>
+
+<style id="romaneio-final-ajustes">
+#romaneio .rom-rank-table th,#romaneio .rom-rank-table td{font-size:15px!important;padding:8px 10px!important}
+#romaneio .rom-rank-table .rom-total td{font-size:15px!important;font-weight:900!important;border-top:2px solid #39c96b!important;border-bottom:2px solid #39c96b!important;background:#0a3553!important}
+#romaneio .rom-rank-table .rom-total td:first-child{border-left:2px solid #39c96b!important;border-radius:9px 0 0 9px}
+#romaneio .rom-rank-table .rom-total td:last-child{border-right:2px solid #39c96b!important;border-radius:0 9px 9px 0}
+</style>
+
+<style id="status-bottom-fix">
+#status{position:fixed!important;right:18px!important;bottom:14px!important;top:auto!important;left:auto!important;z-index:9999!important;width:auto!important;max-width:520px!important;margin:0!important;padding:8px 13px!important;border:1px solid #17638a!important;border-radius:9px!important;background:#06223a!important;box-shadow:0 4px 16px rgba(0,0,0,.28)!important;font-size:12px!important;line-height:1.25!important;color:#bfe6ff!important;}
+#status:empty{display:none!important;}
+</style>
+<style id="nobre-mobile-final">
+@media(max-width:800px){
+body{padding-bottom:76px!important}
+nav{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;z-index:99999!important;display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:3px!important;padding:6px 4px max(6px,env(safe-area-inset-bottom))!important;background:#031525!important;border-top:1px solid #155476!important;border-bottom:0!important;overflow:visible!important;white-space:normal!important}
+nav button{min-width:0!important;width:100%!important;padding:8px 1px!important;margin:0!important;font-size:9px!important;line-height:1.15!important;border-radius:8px!important;white-space:normal!important}
+.upload,.sync-approved,.desktop-only,#status,header .sub{display:none!important}
+#romaneio .rom-rank-table th,#romaneio .rom-rank-table td,#romaneio .rom-rank-table .rom-total td{font-size:15px!important;line-height:1.25!important}
+#romaneio .rom-rank-table .rom-total td{font-weight:900!important}
+}</style>
+
+<style id="nobre-mobile-performance-v2">
+@media(max-width:800px){
+  body{padding-bottom:88px!important}
+
+  /* Abas inferiores maiores, mantendo as 5 na mesma linha */
+  nav{
+    gap:4px!important;
+    padding:7px 5px max(7px,env(safe-area-inset-bottom))!important;
+    contain:layout paint;
+  }
+  nav button{
+    min-height:48px!important;
+    padding:10px 2px!important;
+    font-size:10.5px!important;
+    line-height:1.12!important;
+    border-radius:10px!important;
+    touch-action:manipulation;
+  }
+
+  /* Rolagem mais leve no WebView */
+  html{scroll-behavior:auto!important}
+  body{-webkit-overflow-scrolling:touch}
+  .card,#derruba .panel,#derruba .chart-panel,#derruba .podium-list,#derruba .podium-info{
+    box-shadow:none!important;
+  }
+
+  /* Gráficos pedidos: ocupar a largura do celular, sem arrastar */
+  #workerChart,#sSkiderOverallChart{
+    overflow:hidden!important;
+    padding:10px!important;
+  }
+  #workerChart svg,#sSkiderOverallChart svg{
+    width:100%!important;
+    max-width:100%!important;
+    height:auto!important;
+    display:block!important;
+  }
+
+  /* ROMANEIO: colunas alinhadas dentro da tela */
+  #rRank{overflow:hidden!important;padding:8px!important}
+  #romaneio .rom-rank-table{
+    width:100%!important;
+    table-layout:fixed!important;
+    border-collapse:separate!important;
+  }
+  #romaneio .rom-rank-table th,
+  #romaneio .rom-rank-table td{
+    box-sizing:border-box!important;
+    vertical-align:middle!important;
+    padding:8px 4px!important;
+    text-align:left!important;
+    overflow-wrap:anywhere!important;
+  }
+  #romaneio .rom-rank-table th:nth-child(1),
+  #romaneio .rom-rank-table td:nth-child(1){width:35%!important}
+  #romaneio .rom-rank-table th:nth-child(2),
+  #romaneio .rom-rank-table td:nth-child(2){width:13%!important;text-align:center!important}
+  #romaneio .rom-rank-table th:nth-child(3),
+  #romaneio .rom-rank-table td:nth-child(3){width:26%!important;text-align:center!important}
+  #romaneio .rom-rank-table th:nth-child(4),
+  #romaneio .rom-rank-table td:nth-child(4){width:26%!important;text-align:center!important}
+}
+</style>
+
 </head>
 <body>
-<div class="app-shell">
-  <header class="app-header">
-    <div class="brand-block">
-      <img src="app_icon.png" class="brand-icon" alt="">
-      <div>
-        <div class="mobile-brand">NOBRE FLORESTAL</div><div class="brand-name" id="projectHeaderName">UPA 13 • BLOCO A NORTE</div>
-        <h1>Inventário</h1>
-        <div class="header-meta"><span id="syncStatus">Sem dados carregados</span></div>
-      </div>
-    </div>
-    <div class="header-actions">
-      <span id="networkPill" class="network-pill"><i></i><span>Online</span></span>
-      <button class="icon-action" id="syncBtn" title="Sincronizar" aria-label="Sincronizar">↻</button>
-      <button class="icon-action" id="settingsBtn" title="Configurações" aria-label="Configurações">☰</button>
-    </div>
-  </header>
+<header>
+<h1>🌲 PAINEL FLORESTAL</h1>
+<div class="sub" id="status">Carregue o Excel para iniciar.</div>
+</header>
 
-  <main class="main-content">
-    <section class="screen active" id="homeScreen">
-      <div class="hero-card">
-        <div class="hero-copy">
-          <span class="hero-kicker" id="projectHeroName">UPA 13 • BLOCO A NORTE</span>
-          <h2>Mapa e inventário florestal em um só lugar</h2>
-          <p>Consulte as árvores, acompanhe a situação e navegue pelas coordenadas mesmo sem internet.</p>
-          <button class="primary-cta" data-go="map">Abrir mapa <span>→</span></button>
-        </div>
-        <div class="hero-art"><img src="app_icon.png" alt="Mapa florestal"></div>
-      </div>
+<nav>
+<button class="active" onclick="show('geral',this)">📊 GERAL</button>
+<button onclick="show('derruba',this)">🌳 DERRUBA</button>
+<button onclick="show('skider',this)">🚜 SKIDER</button>
+<button onclick="show('romaneio',this)">📋 ROMANEIO</button>
+  <button onclick="show('motorista',this)">🚛 MOTORISTA</button>
+</nav>
 
-
-      <section class="home-tree-search">
-        <div class="home-search-head">
-          <div>
-            <span>Consulta rápida</span>
-            <h3>Pesquisar nº da árvore</h3>
-            <p>Digite a numeração para ver classificação, situação e localizar no mapa.</p>
-          </div>
-          <div class="home-search-icon">⌕</div>
-        </div>
-        <div class="home-search-input">
-          <span>Árvore</span>
-          <input id="homeTreeSearch" inputmode="numeric" autocomplete="off" placeholder="Ex.: 154">
-          <button id="homeTreeClear" hidden aria-label="Limpar pesquisa">×</button>
-        </div>
-        <div class="home-search-results" id="homeSearchResults">
-          <div class="home-search-empty">
-            <b>Digite o número da árvore</b>
-            <small>O app procura em todas as UTs carregadas e mostra a classificação e a situação atual.</small>
-          </div>
-        </div>
-      </section>
-
-      <div class="section-title"><div><span>Resumo</span><h3>Situação das árvores</h3></div><button class="ghost-btn" data-go="trees">Ver árvores</button></div>
-      <section class="kpi-grid">
-        <article class="kpi-card total"><div class="kpi-icon">◉</div><div><span>Total</span><strong id="kpiTotal">0</strong><small>árvores do projeto</small></div></article>
-        <article class="kpi-card explorar"><div class="kpi-icon">●</div><div><span>A explorar</span><strong id="kpiExplorar">0</strong><small id="kpiExplorarMeta">árvores que faltam derrubar</small><em id="kpiExplorarCap">CAP: 0</em></div></article>
-        <article class="kpi-card cortada"><div class="kpi-icon">●</div><div><span>Cortada</span><strong id="kpiCorte">0</strong><small>corte efetuado</small></div></article>
-        <article class="kpi-card nao"><div class="kpi-icon">●</div><div><span>Não efetuado</span><strong id="kpiNao">0</strong><small>corte não efetuado</small></div></article>
-        <article class="kpi-card arraste"><div class="kpi-icon">●</div><div><span>Arraste</span><strong id="kpiArraste">0</strong><small>árvores em arraste</small></div></article>
-        <article class="kpi-card romaneada"><div class="kpi-icon">●</div><div><span>Romaneada</span><strong id="kpiRomaneada">0</strong><small>toras romaneadas</small></div></article>
-      </section>
-
-      <div class="section-title"><div><span>Acesso rápido</span><h3>Trabalho de campo</h3></div></div>
-      <div class="quick-grid">
-        <button class="quick-card" data-go="map"><b class="quick-symbol">⌖</b><span><strong>Mapa georreferenciado</strong><small>Ver árvores do plano por situação</small></span><i>›</i></button>
-        <button class="quick-card" id="locateQuick"><b class="quick-symbol">◎</b><span><strong>Minha localização</strong><small>Usar GPS mesmo offline</small></span><i>›</i></button>
-        <button class="quick-card" data-go="trees"><b class="quick-symbol">♧</b><span><strong>Pesquisar árvore</strong><small>UT, faixa, número ou espécie</small></span><i>›</i></button>
-        <button class="quick-card" id="importQuick"><b class="quick-symbol">⇩</b><span><strong>Atualizar planilha</strong><small>Importar dados no computador</small></span><i>›</i></button>
-      </div>
-    </section>
-
-    <section class="screen map-screen" id="mapScreen">
-      <div class="mobile-field-dashboard map-search-only">
-        <div class="mobile-map-search">
-          <span>⌕</span><input id="mapTreeSearch" inputmode="numeric" autocomplete="off" placeholder="Pesquisar nº da árvore..."><button id="mapTreeSearchBtn">Buscar</button>
-        </div>
-      </div>
-      <div class="map-topbar">
-        <div>
-          <span id="projectMapName">UPA 13 • BLOCO A NORTE</span>
-          <strong>Mapa georreferenciado</strong>
-        </div>
-        <div class="map-actions">
-          <button class="map-round mobile-map-picker-btn" id="mobileMapPickerBtn" title="Escolher mapa offline">MAPAS</button>
-          <button class="map-round" id="filterMapBtn" title="Filtros">≡</button>
-          <button class="map-round nav-location-btn" id="myLocationBtn" title="Minha localização / acompanhar GPS"><span class="nav-location-pointer">➤</span></button>
-          <button class="map-round label-toggle active" id="labelsToggleBtn" title="Mostrar/ocultar numeração">Nº</button>
-          <button class="map-round trees-toggle active" id="treesToggleBtn" title="Mostrar/ocultar árvores">Árv</button>
-          <button class="map-round" id="fitMapBtn" title="Enquadrar">⌗</button>
-        </div>
-      </div>
-      <div class="map-wrap" id="mapWrap">
-        <canvas id="geoMap"></canvas>
-        <div class="map-tools-dock" id="mapToolsDock" hidden>
-          <button class="dock-btn" id="dockMarkerBtn" title="Adicionar marcador">⌖</button>
-          <button class="dock-btn" id="dockLabelBtn" title="Mostrar/ocultar numeração">✎</button>
-          <button class="dock-btn" id="dockTrackBtn" title="Rastrear percurso">〰</button>
-          <button class="dock-btn" id="dockExportBtn" title="Exportar SHP">▤</button>
-          <button class="dock-btn" id="dockFitBtn" title="Enquadrar mapa">↗</button>
-          <button class="dock-btn" id="dockCompassBtn" title="Mostrar/ocultar bússola">✥</button>
-          <button class="dock-btn" id="dockTargetBtn" title="Centralizar localização">◎</button>
-        </div>
-        <div class="map-compass" id="mapCompass" hidden aria-label="Bússola">
-          <div class="compass-cardinal compass-n">N</div>
-          <div class="compass-cardinal compass-e">L</div>
-          <div class="compass-cardinal compass-s">S</div>
-          <div class="compass-cardinal compass-w">O</div>
-          <div class="compass-needle" id="compassNeedle"><span></span></div>
-          <div class="compass-center"></div>
-          <div class="compass-deg" id="compassDeg">0°</div>
-        </div>
-        <div class="map-count" id="mapCount">0 árvores no mapa</div>
-        <div class="map-legend" id="mapLegend">
-          <span><i class="c-explorar"></i>A explorar</span>
-          <span><i class="c-cortada"></i>Cortada</span>
-          <span><i class="c-nao"></i>Não efetuado</span>
-          <span><i class="c-arraste"></i>Arraste</span>
-          <span><i class="c-romaneada"></i>Romaneada</span>
-          <span class="map-note">A árvore permanece no mapa e troca de cor conforme a situação.</span>
-        </div>
-        <div class="nav-hud" id="navHud" hidden>
-          <div class="nav-arrow" id="navArrow"><span>▲</span></div>
-          <div><small>NAVEGAÇÃO OFFLINE</small><strong id="navDistance">—</strong><span id="navBearing">Aguardando GPS...</span></div>
-          <button id="stopNavBtn">Parar</button>
-        </div>
-      </div>
-      <div class="map-bottom-panel" id="mapBottomPanel">
-        <button class="track-toggle bottom" id="trackToggleBtn" title="Iniciar ou parar rastreamento do percurso"><span>●</span><b>Novo rastreio</b></button>
-        <button class="track-collapse-btn" id="trackCollapseBtn" title="Recolher painel" aria-label="Recolher painel" hidden>⌄</button>
-        <div class="track-hud bottom" id="trackHud" hidden>
-          <div class="track-rec" id="trackRecDot">●</div>
-          <div class="track-main-info"><small id="trackStatusText">ÚLTIMO PERCURSO</small><strong id="trackDistance">0 m</strong><span id="trackInfo">0 pontos • 00:00</span></div>
-          <div class="track-extra" id="trackExtra">
-            <span><small>Direção</small><b id="trackHeading">—</b></span>
-            <span><small>Velocidade</small><b id="trackSpeed">0,0 km/h</b></span>
-            <span><small>Média</small><b id="trackAvgSpeed">0,0 km/h</b></span>
-          </div>
-          <button id="trackExportBtn" hidden>Exportar SHP</button>
-        </div>
-      </div>
-    </section>
-
-    <section class="screen" id="treesScreen">
-      <div class="screen-heading">
-        <div><span>Inventário</span><h2>Árvores</h2><p id="resultCount">0 árvores</p></div>
-        <button class="filter-button" id="filterTreesBtn">Filtros <b id="filterCount" hidden>0</b></button>
-      </div>
-      <div class="search-box"><span>⌕</span><input id="searchInput" placeholder="Buscar nº, espécie, UT, faixa, motosserrista..."><button id="clearSearch" hidden>×</button></div>
-      <div class="status-chips" id="statusChips">
-        <button class="active" data-status="">Todas</button><button data-status="A EXPLORAR">A explorar</button><button data-status="CORTADA">Cortada</button><button data-status="CORTE NÃO EFETUADO">Não efetuado</button><button data-status="ARRASTE">Arraste</button><button data-status="ROMANEADA">Romaneada</button>
-      </div>
-      <div class="tree-list" id="treeList"></div>
-      <div class="pager" id="pager"><button id="prevPage">← Anterior</button><span id="pageInfo">1 / 1</span><button id="nextPage">Próxima →</button></div>
-    </section>
-  </main>
-
-  <nav class="bottom-nav" id="bottomNav">
-    <button class="active" data-go="home"><span>⌂</span><b>Início</b></button>
-    <button data-go="map"><span>⌖</span><b>Mapa</b></button>
-    <button data-go="trees"><span>♧</span><b>Árvores</b></button>
-    <button id="navSync"><span>↻</span><b>Sincronizar</b></button>
-    <button id="navMore"><span>•••</span><b>Mais</b></button>
-  </nav>
+<main>
+<section id="geral" class="page active">
+<div class="section">📊 Resumo geral</div>
+<div class="grid geral-kpis">
+<div class="card"><div class="label">🌳 DERRUBA — TOTAL</div><div class="value" id="gDtotal">0</div><div class="small" id="gDavg">Média/dia: 0</div></div>
+<div class="card"><div class="label">🚜 SKIDER — TOTAL</div><div class="value" id="gStotal">0</div><div class="small" id="gSavg">Média/dia: 0</div></div>
+<div class="card"><div class="label">🚛 VIAGENS — TOTAL</div><div class="value" id="gTrips">0</div><div class="small" id="gTripsAvg"></div></div>
+<div class="card"><div class="label">🌲 ÁRVORES ROMANEADAS — TOTAL</div><div class="value" id="gTreesRom">0</div></div>
+</div>
+<div class="card" style="margin-top:12px">
+<div class="label">📋 ROMANEIO — UM ÚNICO QUADRO</div>
+<div class="grid" style="margin-top:12px">
+<div><div class="label">GEOMÉTRICO — TOTAL GERAL</div><div class="value geral-volume" id="gGeo">0,000 m³</div><div class="small" id="gGeoAvg">Todas as datas</div></div>
+<div><div class="label">FRANCON — TOTAL GERAL</div><div class="value geral-volume" id="gFra">0,000 m³</div><div class="small" id="gFraAvg">Todas as datas</div></div>
+</div>
+<div class="small" style="margin-top:15px">Último dia medido: <b id="gLast">—</b></div>
+<div class="rom-counts"><div><span>🌳 ÁRVORES ROMANEADAS</span><b id="gRomTreesInside">0</b></div><div><span>🪵 TORAS MEDIDAS</span><b id="gRomLogsInside">0</b></div></div>
+<div class="acc-grid">
+ <div class="acc"><div class="label">🗓️ ACUMULADO ATÉ O DIA ANTERIOR</div><b>GEO: <span id="gPrevGeo">0</span> m³</b><b>FRANCON: <span id="gPrevFra">0</span> m³</b><small id="gPrevDate">—</small></div>
+ <div class="acc"><div class="label">📏 MEDIDO HOJE</div><b>GEO: <span id="gTodayGeo">0</span> m³</b><b>FRANCON: <span id="gTodayFra">0</span> m³</b><small id="gTodayDate">—</small></div>
+ <div class="acc"><div class="label">📊 TOTAL ACUMULADO ATUAL</div><b>GEO: <span id="gCurGeo">0</span> m³</b><b>FRANCON: <span id="gCurFra">0</span> m³</b></div>
+</div>
 </div>
 
-<input id="excelFile" type="file" accept=".xls,.xlsx,.xlsm,.csv" hidden>
-<input id="mapImageFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+</section>
+<section id="derruba" class="page">
+<style>
+#derruba .dash{background:#061224;padding:0;max-width:100%;overflow:hidden}
+#derruba .dash-title{text-align:center;font-size:20px;font-weight:800;letter-spacing:.3px;margin:0 0 2px}
+#derruba .dash-sub{text-align:center;font-size:10px;color:#91a5bc;margin-bottom:12px}
+#derruba .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+#derruba .kpi{background:#0d213b;border:1px solid #27476b;border-radius:2px;text-align:center;padding:8px 4px}
+#derruba .kpi .kl{font-size:8px;font-weight:800;color:#d9e5f1}
+#derruba .kpi .kv{font-size:17px;font-weight:900;margin-top:4px}
+#derruba .purplebar{background:#8125f3;color:#fff;font-size:10px;font-weight:900;padding:4px 7px;margin:7px 0 5px}
+#derruba .podium{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+#derruba .podium-list,#derruba .podium-info,#derruba .panel{background:#0c2039;border:1px solid #1e3a5a;padding:8px}
+#derruba .place{font-size:10px;font-weight:800;padding:6px;background:#132b48;margin-bottom:4px}
+#derruba .place b{float:right}
+#derruba .info-row{display:flex;justify-content:space-between;font-size:9px;padding:4px;border-bottom:1px solid #1b3652}
+#derruba .charts{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+#derruba .chart-panel{background:#0c2039;border:1px solid #1e3a5a;padding:8px}
+#derruba .chart-title{font-size:9px;font-weight:800;margin-bottom:4px;color:#dce8f5}
+#derruba canvas{width:100%!important;height:155px!important}
+#derruba .detail{margin-top:7px}
+#derruba .detail table{font-size:9px}
+#derruba .detail th,#derruba .detail td{padding:5px}
+@media(max-width:800px){
+ #derruba .kpis{grid-template-columns:repeat(2,1fr)}
+ #derruba .kpi:last-child{grid-column:1/-1}
+ #derruba .podium,#derruba .charts{grid-template-columns:1fr}
+}
+</style>
 
-<dialog id="filterDialog" class="modal-dialog">
-  <form method="dialog" class="modal-card" onsubmit="return false">
-    <div class="modal-head"><div><span>Refinar resultados</span><h2>Filtros</h2></div><button class="close-modal" type="button" value="cancel">×</button></div>
-    <label>UT<select id="utFilter"><option value="">Todas</option></select></label>
-    <label>Faixa<select id="faixaFilter"><option value="">Todas</option></select></label>
-    <label>Motosserrista<select id="motoFilter"><option value="">Todos</option></select></label>
-    <label>Situação<select id="statusFilter"><option value="">Todas</option><option>A EXPLORAR</option><option>CORTADA</option><option>CORTE NÃO EFETUADO</option><option>ARRASTE</option><option>ROMANEADA</option><option>SEM SITUAÇÃO</option></select></label>
-    <div class="modal-actions"><button class="secondary-btn" id="clearFiltersBtn">Limpar</button><button class="primary-btn" id="applyFiltersBtn">Aplicar</button></div>
-  </form>
-</dialog>
+<div class="dash">
+  <div class="dash-title">PAINEL DE PRODUÇÃO — CORTE</div>
+  <div class="dash-sub">Dados da última planilha carregada</div>
 
-
-<dialog id="mobileMapDialog" class="modal-dialog mobile-map-dialog">
-  <form method="dialog" class="modal-card mobile-map-card" onsubmit="return false">
-    <div class="modal-head">
-      <div><span>Uso offline</span><h2>Escolher mapa</h2></div>
-      <button class="close-modal" id="mobileMapCloseBtn" type="button" value="cancel" aria-label="Fechar">×</button>
-    </div>
-    <div class="mobile-map-offline-note">
-      <b>✓ Funciona sem internet</b>
-      <span>Escolha um mapa, todos juntos ou adicione um PDF direto do celular. Depois funciona offline.</span>
-    </div>
-    <div class="mobile-map-actions">
-      <button type="button" class="primary-btn" id="mobileAddPdfBtn">＋ Adicionar PDF do celular</button>
-      <button type="button" class="primary-btn" id="mobileUseAllMapsBtn">🗺 Usar todos os mapas</button>
-      <button type="button" class="secondary-btn" id="mobileRefreshMapsBtn">↻ Atualizar do PC</button>
-    </div>
-    <div id="mobileMapList" class="mobile-map-list"></div>
-  </form>
-</dialog>
-
-<dialog id="settingsDialog" class="modal-dialog">
-  <form method="dialog" class="modal-card settings-card" onsubmit="return false">
-    <div class="modal-head"><div><span>Nobre Florestal</span><h2>Configurações</h2></div><button class="close-modal" id="settingsCloseBtn" type="button" value="cancel" aria-label="Fechar configurações">×</button></div>
-    <div class="setting-section auto-sync-section-v42"><h3>Sincronização PC ↔ celular</h3>
-      <div class="auto-sync-card-v42">
-        <span class="auto-sync-icon-v42">✓</span>
-        <div>
-          <strong>Configuração automática pelo PC</strong>
-          <small id="autoSyncStatusV42">O endereço e a chave são recebidos automaticamente do computador.</small>
-        </div>
-      </div>
-      <p>Você não precisa mais digitar URL nem chave no celular. Configure somente no PC e sincronize.</p>
-      <input id="apiUrl" type="hidden">
-      <input id="syncKey" type="hidden">
-      <button class="primary-btn full" id="autoSyncNowBtnV42">Buscar configuração e atualização</button>
-      <button id="settingsEditBtn" type="button" hidden></button>
-      <button id="saveSettingsBtn" type="button" hidden></button>
-      <span class="settings-lock-badge" hidden></span>
-    </div>
-    <div class="setting-section"><h3>Dados</h3>
-      <div class="last-file-card"><span>✓</span><div><strong>Última planilha salva</strong><small id="lastWorkbookInfo">Carregando...</small></div></div>
-      <button class="settings-row" id="importBtn"><span>⇩</span><div><strong>Carregar planilha</strong><small>.xls, .xlsx ou .csv</small></div><i>›</i></button>
-      <button class="settings-row" id="watchFileBtn"><span>↻</span><div><strong>Vincular planilha automática</strong><small>Chrome/Edge no computador</small></div><i>›</i></button>
-      <button class="settings-row" id="refreshCloudBtn"><span>☁</span><div><strong>Buscar atualização</strong><small>Sincronizar agora</small></div><i>›</i></button>
-    </div>
-    <div class="setting-section pc-only project-map-section"><h3>Novo projeto / mapa georreferenciado</h3>
-      <p>Para UPA 14, UPA 15 e outros projetos: carregue a nova planilha e depois o mapa. O nome da UPA é lido da planilha; o bloco pode ser lido da planilha ou informado aqui.</p>
-      <div class="project-grid">
-        <label>UPA<input id="projectUpaInput" placeholder="Ex.: 14"></label>
-        <label>Bloco<input id="projectBlockInput" placeholder="Ex.: A NORTE"></label>
-      </div>
-      <div class="last-file-card map-file-card"><span>⌖</span><div><strong>Mapa atual do projeto</strong><small id="mapFileInfo">Mapa padrão UPA 13</small></div></div>
-      <button class="settings-row" id="mapImportBtn"><span>▣</span><div><strong>Adicionar / trocar mapa</strong><small>PNG, JPG ou WEBP</small></div><i>›</i></button>
-      <div class="map-calibration-card">
-        <strong>Encaixe das árvores no mapa</strong>
-        <small>Use “Auto encaixar” e, se necessário, ajuste os limites pelas coordenadas do mapa.</small>
-        <div class="bounds-grid">
-          <label>Norte<input id="mapNorthInput" inputmode="decimal"></label>
-          <label>Sul<input id="mapSouthInput" inputmode="decimal"></label>
-          <label>Oeste<input id="mapWestInput" inputmode="decimal"></label>
-          <label>Leste<input id="mapEastInput" inputmode="decimal"></label>
-        </div>
-        <button class="secondary-btn full" id="autoFitBoundsBtn">Auto encaixar pelas árvores</button>
-      </div>
-      <button class="primary-btn full" id="saveProjectMapBtn">Salvar projeto e enviar aos celulares</button>
-    </div>
-    <div class="setting-section"><h3>Modo offline</h3><div class="offline-info"><b>✓</b><div><strong>Mapa e dados locais</strong><small>Depois da sincronização, o inventário e TODOS os mapas do projeto ficam salvos no aparelho. Você pode escolher um mapa ou usar todos juntos sem internet. A navegação usa GPS offline e mostra sua posição com ponto azul até o destino.</small></div></div><div class="app-version-badge">Versão Android 4.3 • atualização rápida do PC • PDF direto • offline</div></div>
-  </form>
-</dialog>
-
-<dialog id="markerDialog" class="modal-dialog marker-dialog">
-  <form method="dialog" class="modal-card marker-card" onsubmit="return false">
-    <div class="modal-head"><div><span>Mapa</span><h2 id="markerDialogTitle">Novo marcador</h2></div><button class="close-modal marker-cancel" id="markerCancelX" type="button" aria-label="Fechar">×</button></div>
-    <label>Nome do marcador <small>(opcional)</small><input id="markerNameInput" maxlength="80" placeholder="Pode deixar em branco"></label>
-    <div class="marker-coord" id="markerCoordText"></div>
-    <div class="modal-actions marker-actions">
-      <button class="danger-btn" id="markerDeleteBtn" type="button" hidden>Excluir</button>
-      <button class="secondary-btn" id="markerCancelBtn" type="button">Cancelar</button>
-      <button class="primary-btn" id="markerSaveBtn" type="button">Salvar marcador</button>
-    </div>
-  </form>
-</dialog>
-
-<dialog id="treeDialog" class="sheet-dialog">
-  <div class="tree-sheet">
-    <div class="sheet-grabber"></div>
-    <button class="sheet-close" id="closeTreeDialog">×</button>
-    <div class="tree-status" id="treeStatus"><i></i><span>Situação</span></div>
-    <h2 id="treeDialogTitle">Árvore</h2>
-    <p id="treeSubtitle"></p>
-    <div class="tree-details" id="treeDetails"></div>
-    <div class="tree-actions" id="treeActions"></div>
+  <div class="kpis">
+    <div class="kpi"><div class="kl">TOTAL GERAL</div><div class="kv" id="ddTotal">0</div></div>
+    <div class="kpi"><div class="kl">ÁRVORES DERRUBADAS</div><div class="kv" id="ddTrees">0</div></div>
+    <div class="kpi"><div class="kl">MOTOSSERRISTAS</div><div class="kv" id="ddPeople">0</div></div>
+    <div class="kpi"><div class="kl">ESPÉCIES</div><div class="kv" id="ddSpecies">0</div></div>
+    <div class="kpi"><div class="kl">UTs</div><div class="kv" id="ddUT">0</div></div>
   </div>
-</dialog>
 
-<div class="toast" id="toast" hidden></div>
-<script src="initial_data.js"></script>
-<script src="app.js?v=43"></script>
+  <div class="purplebar">🏆 PÓDIUM — TOTAL GERAL</div>
+  <div class="podium">
+    <div class="podium-list" id="ddPodium">
+      <div class="place">🥇 — <b>0</b></div>
+      <div class="place">🥈 — <b>0</b></div>
+      <div class="place">🥉 — <b>0</b></div>
+    </div>
+    <div class="podium-info">
+      <div class="info-row"><span>Última data registrada</span><b id="ddDate">—</b></div>
+      <div class="info-row"><span>Produção na última data</span><b id="ddLastProd">0</b></div>
+      <div class="info-row"><span>Árvores derrubadas na última data</span><b id="ddLastTrees">0</b></div>
+      <div class="info-row"><span>1º colocado na última data</span><b id="ddLastFirst">—</b></div>
+    </div>
+  </div>
+
+  <div class="purplebar">🏆 PRODUÇÃO DOS DERRUBADORES — ÚLTIMA DATA</div>
+  <div class="panel" id="workerChart">Carregue o Excel.</div>
+
+  <div class="purplebar">🏆 TOTAL GERAL DOS DERRUBADORES — TODAS AS DATAS</div>
+  <div class="panel" id="ddGeneralOperators">Carregue o Excel.</div>
+
+  <div class="purplebar">📈 PRODUÇÃO DIÁRIA — ÁRVORES DERRUBADAS</div>
+  <div class="chart-panel" id="dailyChart"></div>
+
+  <div class="purplebar">🌳 ÁRVORES DERRUBADAS POR ESPÉCIE</div>
+  <div class="chart-panel" id="speciesChart"></div>
+
+  <div class="purplebar">🌲 CORTE NÃO EFETUADO — SITUAÇÃO</div>
+  <div class="kpis" style="grid-template-columns:repeat(4,1fr)">
+    <div class="kpi"><div class="kl">OCA</div><div class="kv" id="ddOca">0</div></div>
+    <div class="kpi"><div class="kl">FINA</div><div class="kv" id="ddFina">0</div></div>
+    <div class="kpi"><div class="kl">APP</div><div class="kv" id="ddApp">0</div></div>
+    <div class="kpi"><div class="kl">OUTROS</div><div class="kv" id="ddOutros">0</div></div>
+  </div>
+  <div class="charts" style="margin-top:5px">
+    <div class="chart-panel"><div class="chart-title">🥧 CORTE NÃO EFETUADO — QUANTIDADE POR SITUAÇÃO</div><div id="ddPie">Carregue o Excel.</div></div>
+    <div class="panel" id="ddReasons">Carregue o Excel para visualizar os motivos.</div>
+  </div>
+
+  <div class="purplebar detail">📋 DETALHAMENTO DOS MOTOSSERRISTAS — UT / ESPÉCIE / CATEGORIA / QUANTIDADE</div>
+  <div class="panel" id="ddDetails">Carregue o Excel para visualizar os detalhes.</div>
+</div>
+</section>
+
+
+<section id="skider" class="page">
+<div class="section">🚜 SKIDER</div>
+<div class="grid">
+<div class="card"><div class="label">TOTAL GERAL</div><div class="value" id="sTotal">0</div></div>
+<div class="card"><div class="label">MÉDIA POR DIA</div><div class="value" id="sAvg">0</div></div>
+<div class="card"><div class="label" id="sLastLabel">PRODUÇÃO — ÚLTIMA DATA</div><div class="value" id="sLast">0</div></div>
+<div class="card"><div class="label">SKIDEIROS</div><div class="value" id="sPeople">0</div></div>
+</div>
+<div class="section">🏆 Produção do último dia — Skideiro + Ajudante</div>
+<div class="card" id="sRank">Carregue o Excel.</div>
+<div class="section">📈 Produção geral do SKIDER por dia</div>
+<div class="card chart-panel" id="sDailyChart">Carregue o Excel.</div>
+<div class="section">🚜 TOTAL GERAL DOS SKIDEIROS — TODAS AS DATAS</div>
+<div class="card" id="sSkiderGeneral">Carregue o Excel.</div>
+<div class="section">👷 TOTAL GERAL DOS AJUDANTES — TODAS AS DATAS</div>
+<div class="card" id="sHelperRank">Carregue o Excel.</div>
+<div class="section">📊 GRÁFICO GERAL DOS SKIDEIROS</div>
+<div class="card chart-panel" id="sSkiderOverallChart">Carregue o Excel.</div>
+</section>
+
+<section id="romaneio" class="page">
+<div class="section">📋 ROMANEIO</div>
+<div class="card">
+<div class="grid">
+<div><div class="label">GEOMÉTRICO — GERAL MEDIDO</div><div class="value" id="rGeo">0,00 m³</div><div class="small" id="rGeoAvg">Todas as datas</div></div>
+<div><div class="label">FRANCON — GERAL MEDIDO</div><div class="value" id="rFra">0,00 m³</div><div class="small" id="rFraAvg">Todas as datas</div></div>
+<div><div class="label">ÁRVORES ROMANEADAS</div><div class="value" id="rTreesLast">0</div></div>
+<div><div class="label">TORAS MEDIDAS</div><div class="value" id="rLastFra">0</div></div>
+<div><div class="label">DATA DA PRODUÇÃO</div><div class="value" id="rLastGeo">—</div></div>
+</div>
+</div>
+<div class="section">🏆 Produção dos romaneadores — último dia</div>
+<div class="card" id="rRank">Carregue o Excel.</div>
+<div class="section">🌳 Metragem por espécie e UT — último dia</div>
+<div class="card" id="rDetails">Carregue o Excel.</div>
+<div class="section">📍 TOTAL GERAL DE VOLUME POR UT</div>
+<div class="card" id="rUTGeral">Carregue o Excel.</div>
+</section>
+
+<section id="motorista" class="page">
+<div class="section">🚛 MOTORISTA</div>
+<div class="grid">
+<div class="card"><div class="label">TOTAL GERAL DE VIAGENS</div><div class="value" id="mTripsTotal">0</div></div>
+<div class="card"><div class="label">TORAS</div><div class="value" id="mReg">0</div></div>
+<div class="card"><div class="label">MOTORISTAS</div><div class="value" id="mPeople">0</div></div>
+<div class="card"><div class="label">VIAGENS — ÚLTIMO DIA</div><div class="value" id="mNF">0</div></div>
+<div class="card"><div class="label">MÉDIA DE VIAGENS / DIA TRANSPORTADO</div><div class="value" id="mTripsAvg">0</div></div>
+<div class="card"><div class="label">ÚLTIMA DATA</div><div class="value" id="mLast">—</div></div>
+</div>
+<div class="section">🏆 Produção por motorista — último dia</div>
+<div class="card"><div id="mDriverMetragem">Carregue o Excel.</div></div>
+<div class="section">🚛 TOTAL GERAL POR MOTORISTA</div>
+<div class="card"><div id="mDriverGeral">Carregue o Excel.</div></div>
+</section>
+
+<div class="upload">
+<b>📂 ATUALIZAR COM EXCEL</b><br>
+<input id="file" type="file" accept=".xlsx,.xls,.xlsm,.csv">
+<div id="sheetStatus" class="small ok" style="margin-top:8px">Abas: aguardando leitura...</div>
+<div class="small">Use o Excel gerado no Absolut em “Gerador Excel”. O APP reconhece automaticamente os nomes reais das abas, inclusive SKKIDER, MOTORIOSTA e derruba corte nao efetuado, e guarda a última carga no computador.</div>
+</div>
+</main>
+
+<script>
+const INITIAL_DATA={};
+const S={};
+let dailyChart=null,workerChart=null,speciesChart=null;
+const E=id=>document.getElementById(id)||document.createElement('div');
+const norm=v=>String(v??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLowerCase();
+const parseNum=v=>{
+  if(v===null||v===undefined||v==="")return 0;
+  if(typeof v==="number"&&isFinite(v))return v;
+  let s=String(v).trim().replace(/[^0-9,.-]/g,"");
+  if(!s)return 0;
+  const lastComma=s.lastIndexOf(","), lastDot=s.lastIndexOf(".");
+  if(lastComma>-1 && lastDot>-1){
+    if(lastComma>lastDot)s=s.replace(/\./g,"").replace(",",".");
+    else s=s.replace(/,/g,"");
+  }else if(lastComma>-1){
+    const dec=s.length-lastComma-1;
+    if(dec<=3)s=s.replace(/\./g,"").replace(",","."); else s=s.replace(/,/g,"");
+  }else if(lastDot>-1){
+    const dec=s.length-lastDot-1;
+    if(dec>3)s=s.replace(/\./g,"");
+  }
+  const n=Number(s);return isFinite(n)?n:0;
+};
+const fmt=v=>parseNum(v).toLocaleString("pt-BR",{maximumFractionDigits:2});
+const m3=v=>{const n=parseNum(v); return n.toLocaleString("pt-BR",{useGrouping:true,maximumFractionDigits:3});};
+function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function cols(r,...names){let k=Object.keys(r).find(x=>names.map(norm).includes(norm(x)));return k? r[k]:""}
+function arrUnique(a){return [...new Set(a.map(v=>String(v??"").trim()).filter(Boolean))]}
+function parseDate(v){
+  if(v instanceof Date && !isNaN(v))return new Date(v.getFullYear(),v.getMonth(),v.getDate());
+  if(typeof v==="number" && isFinite(v)){
+    const d=new Date(Date.UTC(1899,11,30)+v*86400000); return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
+  }
+  const s=String(v??"").trim();
+  let m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if(m){let y=+m[3];if(y<100)y+=2000;return new Date(y,+m[2]-1,+m[1])}
+  const d=new Date(s); return isNaN(d)?null:new Date(d.getFullYear(),d.getMonth(),d.getDate());
+}
+function dateKey(v){const d=parseDate(v);return d?d.toISOString().slice(0,10):""}
+function dateLabel(k){if(!k)return"-";const p=k.split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:k}
+function latest(rows,dateNames){
+  const ds=rows.map(r=>dateKey(cols(r,...dateNames))).filter(Boolean);
+  if(!ds.length)return[];
+  const k=ds.sort().at(-1);return rows.filter(r=>dateKey(cols(r,...dateNames))===k)
+}
+function avgPerDay(rows,dateNames){const d=arrUnique(rows.map(r=>dateKey(cols(r,...dateNames))).filter(Boolean));return d.length?rows.length/d.length:0}
+function rank(rows,nameNames,valueFn=()=>1){
+  const m={};rows.forEach(r=>{const n=String(cols(r,...nameNames)||"Sem nome").trim();if(n)m[n]=(m[n]||0)+valueFn(r)});
+  return Object.entries(m).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],"pt-BR"))
+}
+function tableRank(a,unit){
+  return '<table><tr><th>Pos.</th><th>Nome</th><th>Produção</th></tr>'+
+    a.map((x,i)=>`<tr><td>${i+1}º</td><td>${esc(x[0])}</td><td>${fmt(x[1])} ${unit||""}</td></tr>`).join("")+
+    '</table>';
+}
+function sheetFind(type){
+  const keys=Object.keys(S);
+  const n=keys.find(k=>norm(k)===norm(type)); if(n)return n;
+  return keys.find(k=>norm(k).includes(norm(type)));
+}
+function getSheet(...aliases){
+  const keys=Object.keys(S);
+  for(const a of aliases){const k=keys.find(x=>norm(x)===norm(a));if(k)return Array.isArray(S[k])?S[k]:[];}
+  for(const a of aliases){const k=keys.find(x=>norm(x).includes(norm(a))||norm(a).includes(norm(x)));if(k)return Array.isArray(S[k])?S[k]:[];}
+  return [];
+}
+
+/* ---------- Navegação das abas ---------- */
+function show(id,btn){
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  const page=document.getElementById(id);
+  if(page) page.classList.add("active");
+  document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+  if(btn) btn.classList.add("active");
+  window.scrollTo(0,0);
+}
+
+/* ---------- XLSX ZIP/XML reader ---------- */
+function u16(a,p){return a[p]|(a[p+1]<<8)}
+function u32(a,p){return (a[p]|(a[p+1]<<8)|(a[p+2]<<16)|(a[p+3]<<24))>>>0}
+function findSig(a,sig,start){for(let i=a.length-4;i>=Math.max(0,start);i--)if(u32(a,i)===sig)return i;return-1}
+async function inflateRaw(buf){
+  if(!("DecompressionStream" in window))throw Error("Este Chrome não suporta a leitura direta do Excel. Atualize o Chrome.");
+  const ds=new DecompressionStream("deflate-raw");
+  return new Uint8Array(await new Response(new Blob([buf]).stream().pipeThrough(ds)).arrayBuffer());
+}
+async function unzip(buf){
+  const a=new Uint8Array(buf),e=findSig(a,0x06054b50,Math.max(0,a.length-70000));
+  if(e<0)throw Error("Arquivo XLSX inválido.");
+  const count=u16(a,e+10),cdSize=u32(a,e+12),cdOff=u32(a,e+16),z={};let p=cdOff;
+  const dec=new TextDecoder("utf-8");
+  for(let i=0;i<count && p<cdOff+cdSize;i++){
+    if(u32(a,p)!==0x02014b50)break;
+    const method=u16(a,p+10),cs=u32(a,p+20),nl=u16(a,p+28),el=u16(a,p+30),cl=u16(a,p+32),lo=u32(a,p+42);
+    const name=dec.decode(a.slice(p+46,p+46+nl)),lnl=u16(a,lo+26),lel=u16(a,lo+28);
+    const raw=a.slice(lo+30+lnl+lel,lo+30+lnl+lel+cs);
+    z[name]=method===0?raw:await inflateRaw(raw);
+    p+=46+nl+el+cl;
+  }
+  return z;
+}
+function xmlDoc(b){return new DOMParser().parseFromString(new TextDecoder("utf-8").decode(b),"application/xml")}
+function strings(z){
+  const out=[];if(!z["xl/sharedStrings.xml"])return out;
+  const d=xmlDoc(z["xl/sharedStrings.xml"]);
+  [...d.getElementsByTagNameNS("*","si")].forEach(si=>out.push([...si.getElementsByTagNameNS("*","t")].map(x=>x.textContent).join("")));
+  return out;
+}
+function sheetMatrix(b,shared){
+  const d=xmlDoc(b),rows=[];
+  [...d.getElementsByTagNameNS("*","row")].forEach(row=>{
+    const o={};
+    [...row.getElementsByTagNameNS("*","c")].forEach(c=>{
+      const ref=c.getAttribute("r")||"A1",m=ref.match(/^[A-Z]+/i);
+      let idx=0;if(m)for(const ch of m[0].toUpperCase())idx=idx*26+ch.charCodeAt(0)-64;idx--;
+      const t=c.getAttribute("t")||"",v=c.getElementsByTagNameNS("*","v")[0]?.textContent??"";
+      o[idx]=t==="s"?(shared[Number(v)]??""):t==="inlineStr"?[...c.getElementsByTagNameNS("*","t")].map(x=>x.textContent).join(""):v;
+    });
+    rows.push(o);
+  });
+  return rows;
+}
+function objectsFromMatrix(raw){
+  if(!raw.length)return[];
+  // Procura primeiro uma linha que realmente pareça cabeçalho.
+  const wanted=["data","motorista","romaneador","nf","placa","viagem","ut","numero","secao","nome comum","categoria","volume geometrico","volume comercial","volume oco","qtd medida","qtd toras","posicao","arvores","toras","especie","dias"];
+  let hi=-1,best=-1;
+  for(let i=0;i<Math.min(raw.length,150);i++){
+    const vals=Object.values(raw[i]).map(v=>norm(v)).filter(Boolean);
+    if(!vals.length)continue;
+    let score=0;
+    vals.forEach(v=>{if(wanted.some(w=>v===w || v.startsWith(w+" ") || v.includes(w)))score++;});
+    if(score>best){best=score;hi=i;}
+  }
+  if(hi<0 || best<1){
+    // Mesmo sem cabeçalho identificável, preserva a aba como tabela genérica.
+    hi=raw.findIndex(r=>Object.values(r).some(v=>String(v??"").trim()!==""));
+    if(hi<0)return[];
+  }
+  const keys=Object.keys(raw[hi]).map(Number).sort((a,b)=>a-b);
+  const headers=keys.map(k=>String(raw[hi][k]??"").trim());
+  return raw.slice(hi+1).map(row=>{
+    const o={}; let has=false;
+    headers.forEach((h,i)=>{
+      if(!h)return;
+      const v=row[keys[i]]??"";
+      o[h]=v;
+      if(String(v).trim()!=="")has=true;
+    });
+    return has?o:null;
+  }).filter(Boolean);
+}
+
+async function readWorkbook(file){
+  const z=await unzip(await file.arrayBuffer()), sh=strings(z);
+  if(!z["xl/workbook.xml"])throw Error("O arquivo não contém uma estrutura XLSX válida.");
+  const wb=xmlDoc(z["xl/workbook.xml"]);
+  const relFile=z["xl/_rels/workbook.xml.rels"];
+  if(!relFile)throw Error("Não encontrei o arquivo de relações do Excel.");
+  const rel=xmlDoc(relFile), relMap={};
+  [...rel.getElementsByTagNameNS("*","Relationship")].forEach(r=>relMap[r.getAttribute("Id")]=r.getAttribute("Target"));
+  const sheets=[...wb.getElementsByTagNameNS("*","sheet")];
+  const out={};
+  sheets.forEach((sheet,i)=>{
+    const name=sheet.getAttribute("name")||("ABA "+(i+1));
+    const rid=sheet.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","id")||sheet.getAttribute("r:id");
+    let target=relMap[rid]||"";
+    target=target.replace(/\\/g,"/").replace(/^\//,"");
+    if(target.startsWith("/xl/"))target=target.slice(1);
+    if(!target.startsWith("xl/"))target="xl/"+target.replace(/^.*?worksheets\//,"worksheets/");
+    const candidates=[target,target.replace(/^xl\//,""),"xl/worksheets/"+target.split("/").pop()];
+    const f=candidates.find(x=>z[x]);
+    if(!f)return;
+    out[name]=objectsFromMatrix(sheetMatrix(z[f],sh));
+  });
+  if(!Object.keys(out).length)throw Error("Não encontrei nenhuma aba legível no Excel.");
+  // Mapeamento explícito dos nomes usados pelo Absolut.
+  const keyByNorm=n=>Object.keys(out).find(k=>norm(k)===norm(n));
+  const kd=keyByNorm("derruba"); if(kd)out.DERRUBA=out[kd];
+  const ks=keyByNorm("SKKIDER")||keyByNorm("SKIDER"); if(ks)out.SKIDER=out[ks];
+  const kr=keyByNorm("romaneio"); if(kr)out.ROMANEIO=out[kr];
+  const km=keyByNorm("MOTORIOSTA")||keyByNorm("MOTORISTA"); if(km)out.MOTORISTA=out[km];
+  const kn=keyByNorm("derruba corte nao efetuado")||keyByNorm("corte nao efetuado"); if(kn)out["CORTE NÃO EFETUADO"]=out[kn];
+  // Compatibilidade com bases antigas.
+  if(out.BASE_DERRUBA)out.DERRUBA=out.BASE_DERRUBA;
+  if(out.BASE_METRAGEM)out.ROMANEIO=out.BASE_METRAGEM;
+  if(out.RANKING_MOTORISTAS)out.MOTORISTA_RANKING=out.RANKING_MOTORISTAS;
+  if(out.VIAGENS_NF)out.VIAGENS=out.VIAGENS_NF;
+  return out;
+}
+
+/* ---------- Draw SVG charts; no external chart library ---------- */
+function svgBars(items,title){
+  if(!items.length)return'<div class="empty">Sem dados.</div>';
+  const max=Math.max(...items.map(x=>x[1]),1),rh=38,left=245,right=80,top=title?30:8,bottom=12,w=Math.max(980,left+right+300),h=top+items.length*rh+bottom;
+  let s=`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${title?`<text x="8" y="18" fill="#dce6f2" font-size="15" font-weight="700">${esc(title)}</text>`:''}`;
+  items.forEach((x,i)=>{let y=top+i*rh,bw=Math.max(4,(w-left-right)*x[1]/max),bh=16,r=8,x0=left,x1=left+bw;let d=`M ${x0} ${y} H ${Math.max(x0,x1-r)} Q ${x1} ${y} ${x1} ${y+r} V ${y+bh-r} Q ${x1} ${y+bh} ${Math.max(x0,x1-r)} ${y+bh} H ${x0} Z`;s+=`<text x="5" y="${y+13}" fill="#f5f8ff" font-size="14" font-weight="700">${esc(x[0])}</text><path d="${d}" fill="#20d56b"/><text x="${Math.min(w-55,x1+8)}" y="${y+13}" fill="#fff" font-size="12" font-weight="800">${fmt(x[1])}</text>`});
+  return s+"</svg>";
+}
+
+
+function svgBarsMobile(items,title){
+  if(!items.length)return'<div class="empty">Sem dados.</div>';
+  const max=Math.max(...items.map(x=>x[1]),1);
+  const w=360,left=145,right=35,rh=36,top=title?28:8,bottom=10;
+  const h=top+items.length*rh+bottom;
+  let s=`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMinYMin meet">`;
+  if(title)s+=`<text x="3" y="17" fill="#dce6f2" font-size="10.5" font-weight="800">${esc(title)}</text>`;
+  items.forEach((x,i)=>{
+    const y=top+i*rh,bh=14,x0=left;
+    const bw=Math.max(3,(w-left-right)*x[1]/max),x1=x0+bw,r=7;
+    const d=`M ${x0} ${y} H ${Math.max(x0,x1-r)} Q ${x1} ${y} ${x1} ${y+r} V ${y+bh-r} Q ${x1} ${y+bh} ${Math.max(x0,x1-r)} ${y+bh} H ${x0} Z`;
+    s+=`<text x="2" y="${y+11}" fill="#f5f8ff" font-size="9.2" font-weight="800">${esc(x[0])}</text>`;
+    s+=`<path d="${d}" fill="#20d56b"/>`;
+    s+=`<text x="${Math.min(w-27,x1+4)}" y="${y+11}" fill="#fff" font-size="9.5" font-weight="900">${fmt(x[1])}</text>`;
+  });
+  return s+"</svg>";
+}
+
+function svgLine(items){
+  if(!items.length)return'<div class="empty">Sem dados.</div>';
+  const max=Math.max(...items.map(x=>x[1]),1),w=Math.max(900,items.length*70),h=350,left=55,right=20,top=25,bottom=60,pw=w-left-right,ph=h-top-bottom,step=items.length>1?pw/(items.length-1):0;
+  let path="",s=`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`;
+  for(let i=0;i<=5;i++){let y=h-bottom-ph*i/5;s+=`<line x1="${left}" y1="${y}" x2="${w-right}" y2="${y}" stroke="#1d304b"/><text x="${left-8}" y="${y+4}" text-anchor="end" fill="#b9c8d8" font-size="10">${fmt(max*i/5)}</text>`}
+  items.forEach((x,i)=>{let xx=left+(items.length===1?pw/2:i*step),yy=h-bottom-(ph*x[1]/max);path+=(i?" L ":"M ")+xx+" "+yy;s+=`<circle cx="${xx}" cy="${yy}" r="4" fill="#14d9ff"/><text x="${xx}" y="${Math.max(14,yy-8)}" text-anchor="middle" fill="#fff" font-size="10">${fmt(x[1])}</text><text x="${xx}" y="${h-bottom+22}" text-anchor="middle" fill="#b9c8d8" font-size="10">${dateLabel(x[0])}</text>`});
+  s+=`<path d="${path}" fill="none" stroke="#14d9ff" stroke-width="2.5"/></svg>`;return s;
+}
+
+function svgPie(items){
+  const total=items.reduce((a,x)=>a+x[1],0); if(!total)return'<div class="empty">Sem dados.</div>';
+  const w=620,h=310,cx=190,cy=155,r=112,colors=['#7c2bef','#14d9ff','#f59e0b','#22c55e']; let a=-Math.PI/2,s=`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`;
+  items.forEach((x,i)=>{const da=2*Math.PI*x[1]/total,b=a+da,x1=cx+r*Math.cos(a),y1=cy+r*Math.sin(a),x2=cx+r*Math.cos(b),y2=cy+r*Math.sin(b),large=da>Math.PI?1:0;s+=`<path d="M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z" fill="${colors[i%colors.length]}" stroke="#061224" stroke-width="2"/>`;const mid=a+da/2,tx=cx+(r*.62)*Math.cos(mid),ty=cy+(r*.62)*Math.sin(mid);if(x[1]>0)s+=`<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" fill="#fff" font-size="12" font-weight="800">${esc(x[0])} ${fmt(x[1])}</text>`;s+=`<rect x="360" y="${70+i*45}" width="16" height="16" rx="3" fill="${colors[i%colors.length]}"/><text x="385" y="${83+i*45}" fill="#fff" font-size="13">${esc(x[0])}: ${fmt(x[1])}</text>`;a=b;}); return s+'</svg>';
+}
+
+function update(){
+  // Reconhece também os nomes usados atualmente pelo Absolut.
+  const dr=getSheet("DERRUBA","BASE_DERRUBA","derruba");
+  const sk=getSheet("SKIDER","SKKIDER","skkider");
+  const ro=getSheet("ROMANEIO","BASE_METRAGEM","romaneio");
+  const nd=getSheet("CORTE NÃO EFETUADO","DERRUBA CORTE NAO EFETUADO","DERRUBA CORTE NÃO EFETUADO","derruba corte nao efetuado");
+  const mt=getSheet("MOTORISTA","MOTORIOSTA","motorista","motoriosta","VIAGENS_NF","VIAGENS");
+
+  const dn=["Data do Corte","Data Corte","Data","Dt Corte"];
+  const sn=["Data Patio","Data Pátio","Data Pátio de Arraste","Data Arraste","Data"];
+  const rn=["data","Data","Data Romaneio"];
+  const mn=["Data","Data Movimento","Data Movimentação"];
+  const dl=latest(dr,dn), sl=latest(sk,sn), rl=latest(ro,rn), ml=latest(mt,mn);
+  const dayD=dl.length?dateKey(cols(dl[0],...dn)):"";
+  const dayS=sl.length?dateKey(cols(sl[0],...sn)):"";
+  const dayR=rl.length?dateKey(cols(rl[0],...rn)):"";
+  const dayM=ml.length?dateKey(cols(ml[0],...mn)):"";
+  const daysD=arrUnique(dr.map(r=>dateKey(cols(r,...dn))).filter(Boolean)).length||1;
+  const daysS=arrUnique(sk.map(r=>dateKey(cols(r,...sn))).filter(Boolean)).length||1;
+
+  // GERAL: ROMANEIO mostra o acumulado de todas as datas.
+  E("gDtotal").textContent=fmt(dr.length); E("gDavg").textContent="Média/dia: "+fmt(dr.length/daysD);
+  E("gStotal").textContent=fmt(sk.length); E("gSavg").textContent="Média/dia: "+fmt(sk.length/daysS);
+  const lgeo=ro.reduce((a,r)=>a+parseNum(cols(r,"Volume Geométrico (m³)","Volume Geométrico","Volume Geometrico","Geométrico")),0);
+  const lfra=ro.reduce((a,r)=>a+parseNum(cols(r,"Volume francon (m³)","Volume Francon (m³)","Volume Francon","Volume Francon (m3)","Francon")),0);
+  const isSecA=r=>{const v=String(cols(r,"Secção","Seção","Seccao","Secao","SECÇÃO","SEÇÃO","Seção/Tora","Secção/Tora","Tora","Seção da Tora")||"").trim().toUpperCase();return v==="A"||v.startsWith("A-")||v.startsWith("A ");};
+  const treesAll=ro.filter(isSecA).length; const treesLast=rl.filter(isSecA).length;
+  if(E("gTreesRom"))E("gTreesRom").textContent=fmt(treesAll); if(E("gRomTreesInside"))E("gRomTreesInside").textContent=fmt(treesAll); if(E("gRomLogsInside"))E("gRomLogsInside").textContent=fmt(ro.length); if(E("rTreesLast"))E("rTreesLast").textContent=fmt(treesLast);
+  // GERAL: acumulado, medido hoje e total atual usam TODAS as linhas do ROMANEIO, com ou sem nome de romaneador.
+  const prevR=ro.filter(r=>{const d=dateKey(cols(r,...rn));return d && d<dayR;});
+  const prevGeo=prevR.reduce((a,r)=>a+parseNum(cols(r,"Volume Geométrico (m³)","Volume Geométrico","Volume Geometrico","Geométrico")),0);
+  const prevFra=prevR.reduce((a,r)=>a+parseNum(cols(r,"Volume francon (m³)","Volume Francon (m³)","Volume Francon","Francon")),0);
+  const todayGeo=rl.reduce((a,r)=>a+parseNum(cols(r,"Volume Geométrico (m³)","Volume Geométrico","Volume Geometrico","Geométrico")),0);
+  const todayFra=rl.reduce((a,r)=>a+parseNum(cols(r,"Volume francon (m³)","Volume Francon (m³)","Volume Francon","Francon")),0);
+  const currentGeo=ro.reduce((a,r)=>a+parseNum(cols(r,"Volume Geométrico (m³)","Volume Geométrico","Volume Geometrico","Geométrico")),0);
+  const currentFra=ro.reduce((a,r)=>a+parseNum(cols(r,"Volume francon (m³)","Volume Francon (m³)","Volume Francon","Francon")),0);
+  [["gPrevGeo",prevGeo],["gPrevFra",prevFra],["gTodayGeo",todayGeo],["gTodayFra",todayFra],["gCurGeo",currentGeo],["gCurFra",currentFra]].forEach(([id,v])=>{if(E(id))E(id).textContent=m3(v)});
+  if(E("gTodayDate"))E("gTodayDate").textContent=dateLabel(dayR);
+  if(E("gPrevDate")){const d=new Date(dayR+'T00:00:00');if(!isNaN(d)){d.setDate(d.getDate()-1);E("gPrevDate").textContent='Acumulado até '+d.toLocaleDateString('pt-BR');}}
+
+  E("gGeo").textContent=m3(lgeo)+" m³"; E("gGeoAvg").textContent="Todas as datas";
+  E("gFra").textContent=m3(lfra)+" m³"; E("gFraAvg").textContent="Todas as datas";
+  E("gLast").textContent=dateLabel(dayR);
+
+  // SKIDER
+  E("sTotal").textContent=fmt(sk.length);
+  E("sAvg").textContent=fmt(sk.length/daysS);
+  E("sLastLabel").textContent="PRODUÇÃO — "+(dayS?dateLabel(dayS):"ÚLTIMA DATA");
+  E("sLast").textContent=fmt(sl.length);
+  E("sPeople").textContent=fmt(arrUnique(sk.map(r=>cols(r,"Skideiro Pátio","Skideiro Patio","Skideiro","Skider"))).length);
+  const duplas={}; sl.forEach(r=>{const skd=String(cols(r,"Skideiro Pátio","Skideiro Patio","Skideiro","Skider")||"Sem skideiro").trim(),aj=String(cols(r,"Ajudante Pátio","Ajudante Patio","Ajudante","Ajudante Skider","Ajudante SKIDER")||"Sem ajudante").trim(),k=skd+" + "+aj;duplas[k]=(duplas[k]||0)+1;});
+  E("sRank").innerHTML=tableRank(Object.entries(duplas).sort((a,b)=>b[1]-a[1]),"árvores — último dia");
+  const helpers=rank(sk,["Ajudante Pátio","Ajudante Patio","Ajudante","Ajudante Skider","Ajudante SKIDER"]);
+  E("sHelperRank").innerHTML=tableRank(helpers,"árvores no total");
+  const skGeneral=rank(sk,["Skideiro Pátio","Skideiro Patio","Skideiro","Skider"]);
+  E("sSkiderGeneral").innerHTML=tableRank(skGeneral,"árvores no total");
+  if(E("sSkiderOverallChart"))E("sSkiderOverallChart").innerHTML=(window.innerWidth<=800?svgBarsMobile(skGeneral):svgBars(skGeneral));
+  const sdm={}; sk.forEach(r=>{const k=dateKey(cols(r,...sn));if(k)sdm[k]=(sdm[k]||0)+1});
+  const skDaily=Object.entries(sdm).sort((a,b)=>a[0].localeCompare(b[0]));
+  E("sDailyChart").innerHTML=svgLine(skDaily); setTimeout(()=>{const c=E("sDailyChart");if(c)c.scrollLeft=c.scrollWidth;},0);
+  if(E("gSkiderDaily")){E("gSkiderDaily").innerHTML=svgLine(skDaily); setTimeout(()=>{E("gSkiderDaily").scrollLeft=E("gSkiderDaily").scrollWidth;},0);}
+
+  // ROMANEIO: somente última data.
+  const totalGeo=ro.reduce((a,r)=>a+parseNum(cols(r,"Volume Geométrico (m³)","Volume Geométrico","Volume Geometrico","Geométrico")),0);
+  const totalFra=ro.reduce((a,r)=>a+parseNum(cols(r,"Volume francon (m³)","Volume Francon (m³)","Volume Francon","Francon")),0);
+  E("rGeo").textContent=m3(totalGeo)+" m³";
+  E("rFra").textContent=m3(totalFra)+" m³";
+  E("rGeoAvg").textContent="Todas as datas";
+  E("rFraAvg").textContent="Todas as datas";
+  E("rLastGeo").textContent=dateLabel(dayR);
+  E("rLastFra").textContent=fmt(rl.length);
+
+  // Geométrico e Francon por romaneador na última data.
+  const rom={};
+  rl.forEach(r=>{
+    const nome=String(cols(r,"ROMAneador","ROMANEADOR","Romaneador","Romaneiro")||"").trim();
+    if(!nome) return;
+    if(!rom[nome])rom[nome]={geo:0,fra:0,toras:0};
+    rom[nome].geo+=parseNum(cols(r,"Volume Geométrico (m³)","Volume Geométrico","Volume Geometrico","Geométrico"));
+    rom[nome].fra+=parseNum(cols(r,"Volume francon (m³)","Volume Francon (m³)","Volume Francon","Francon"));
+    rom[nome].toras++;
+  });
+  const romRows=Object.entries(rom).sort((a,b)=>b[1].geo-a[1].geo);
+  let rt='<table class="rom-rank-table"><tr><th>Romaneador</th><th>Toras</th><th>Geométrico m³</th><th>Francon m³</th></tr>';
+  romRows.forEach(([n,v])=>rt+=`<tr><td><b>${esc(n)}</b></td><td>${fmt(v.toras)}</td><td>${m3(v.geo)}</td><td>${m3(v.fra)}</td></tr>`);
+  const romTot=romRows.reduce((a,[n,v])=>{a.toras+=v.toras;a.geo+=v.geo;a.fra+=v.fra;return a},{toras:0,geo:0,fra:0});
+  rt+=`<tr class="rom-total"><td><b>TOTAL GERAL</b></td><td><b>${fmt(romTot.toras)}</b></td><td><b>${m3(romTot.geo)}</b></td><td><b>${m3(romTot.fra)}</b></td></tr></table>`;
+  E("rRank").innerHTML=romRows.length?rt:"Nenhum romaneio encontrado na última data.";
+
+  let byEsp={},byUT={}; rl.forEach(r=>{
+    const e=String(cols(r,"Nome Comum","Espécie","Especie")||"Sem espécie"),u=String(cols(r,"UT")||"Sem UT");
+    const g=parseNum(cols(r,"Volume Geométrico (m³)","Volume Geométrico","Volume Geometrico","Geométrico"));
+    const f=parseNum(cols(r,"Volume francon (m³)","Volume Francon (m³)","Volume Francon","Francon"));
+    (byEsp[e]??=[0,0]);byEsp[e][0]+=g;byEsp[e][1]+=f;(byUT[u]??=[0,0]);byUT[u][0]+=g;byUT[u][1]+=f;
+  });
+  let rh="<table><tr><th>Espécie</th><th>Geométrico m³</th><th>Francon m³</th></tr>";
+  Object.entries(byEsp).sort((a,b)=>b[1][0]-a[1][0]).forEach(x=>rh+=`<tr><td>${esc(x[0])}</td><td>${m3(x[1][0])}</td><td>${m3(x[1][1])}</td></tr>`);
+  rh+="</table><br><table><tr><th>UT</th><th>Geométrico m³</th><th>Francon m³</th></tr>";
+  Object.entries(byUT).sort((a,b)=>b[1][0]-a[1][0]).forEach(x=>rh+=`<tr><td>${esc(x[0])}</td><td>${m3(x[1][0])}</td><td>${m3(x[1][1])}</td></tr>`);
+  rh+="</table>"; E("rDetails").innerHTML=rl.length?rh:"Nenhum detalhe de romaneio encontrado.";
+
+  const utG={}, utEsp={}; ro.forEach(r=>{const u=String(cols(r,"UT")||"Sem UT").trim(),esp=String(cols(r,"Nome Comum","Espécie","Especie","Nome da Espécie")||"Sem espécie").trim(),g=parseNum(cols(r,"Volume Geométrico (m³)","Volume Geométrico","Volume Geometrico","Geométrico")),f=parseNum(cols(r,"Volume francon (m³)","Volume Francon (m³)","Volume Francon","Francon"));(utG[u]??=[0,0,0]);utG[u][0]+=g;utG[u][1]+=f;utG[u][2]++;(utEsp[u]??={});(utEsp[u][esp]??=[0,0,0]);utEsp[u][esp][0]+=g;utEsp[u][esp][1]+=f;utEsp[u][esp][2]++;}); const utSort=(a,b)=>{const na=parseFloat(String(a).replace(',','.')),nb=parseFloat(String(b).replace(',','.'));return Number.isFinite(na)&&Number.isFinite(nb)?na-nb:String(a).localeCompare(String(b),'pt-BR',{numeric:true})}; let uth='<table><tr><th>UT</th><th>Volume Geo m³</th><th>Volume Francon m³</th><th>Toras</th></tr>'; Object.keys(utG).sort(utSort).forEach((u,idx)=>{const v=utG[u],id='utd'+idx;uth+=`<tr class="ut-toggle" onclick="document.getElementById('${id}').classList.toggle('open')"><td><b>› UT ${esc(u)}</b></td><td><b>${m3(v[0])}</b></td><td><b>${m3(v[1])}</b></td><td><b>${fmt(v[2])}</b></td></tr><tbody id="${id}" class="ut-detail"><tr><th>Espécie</th><th>Volume Geo m³</th><th>Volume Francon m³</th><th>Toras</th></tr>`;Object.entries(utEsp[u]||{}).sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).forEach(([esp,ev])=>uth+=`<tr><td style="padding-left:28px">${esc(esp)}</td><td>${m3(ev[0])}</td><td>${m3(ev[1])}</td><td>${fmt(ev[2])}</td></tr>`);uth+='</tbody>';}); uth+='</table>'; E("rUTGeral").innerHTML=ro.length?uth:"Nenhum dado por UT encontrado.";
+
+  // MOTORISTA: volumes vêm exclusivamente da aba MOTORIOSTA/MOTORISTA.
+  const nfs=arrUnique(mt.map(r=>cols(r,"NF","Nf","Nota Fiscal")).filter(Boolean));
+  const motoristas=rank(ml,["Motorista","Condutor","Caminhoneiro"]);
+  const lastNfs=arrUnique(ml.map(r=>cols(r,"NF","Nf","Nota Fiscal")).filter(Boolean));
+  E("mReg").textContent=fmt(ml.length);
+  E("mPeople").textContent=fmt(arrUnique(ml.map(r=>cols(r,"Motorista","Condutor","Caminhoneiro")).filter(Boolean)).length);
+  E("mNF").textContent=fmt(lastNfs.length);
+  E("mTripsTotal").textContent=fmt(nfs.length);
+  const motorDays=arrUnique(mt.map(r=>dateKey(cols(r,...mn))).filter(Boolean));
+  E("mTripsAvg").textContent=motorDays.length?fmt(nfs.length/motorDays.length):"0";
+  E("mLast").textContent=dateLabel(dayM);
+
+
+  const driverMetragem={};
+  ml.forEach(r=>{
+    const nome=String(cols(r,"Motorista","Condutor","Caminhoneiro")||"Sem motorista").trim();
+    if(!driverMetragem[nome])driverMetragem[nome]={geo:0,fra:0,nfs:new Set(),toras:0};
+    driverMetragem[nome].geo+=parseNum(cols(r,"Florestal M3","Florestal m3"));
+    driverMetragem[nome].fra+=parseNum(cols(r,"Comercial M3","Comercial m3"));
+    const nf=String(cols(r,"NF","Nf","Nota Fiscal")||"").trim(); if(nf)driverMetragem[nome].nfs.add(nf);
+    driverMetragem[nome].toras++;
+  });
+  const dmRows=Object.entries(driverMetragem).map(([nome,v])=>({nome,geo:v.geo,fra:v.fra,nfs:v.nfs.size,toras:v.toras})).sort((a,b)=>b.geo-a.geo||a.nome.localeCompare(b.nome,"pt-BR"));
+  let mmt='<table><tr><th>Pos.</th><th>Motorista</th><th>Viagens (NF únicas)</th><th>Toras</th><th>Geométrico m³</th><th>Francon m³</th></tr>';
+  dmRows.forEach((x,i)=>mmt+=`<tr><td>${i+1}º</td><td><b>${esc(x.nome)}</b></td><td>${fmt(x.nfs)}</td><td>${fmt(x.toras)}</td><td>${m3(x.geo)}</td><td>${m3(x.fra)}</td></tr>`);
+  mmt+='</table>'; E("mDriverMetragem").innerHTML=dmRows.length?mmt:"Nenhuma metragem por motorista encontrada.";
+
+  // TOTAL GERAL POR MOTORISTA: todas as datas + última data carregada + média por dia transportado.
+  const driverGeral={};
+  mt.forEach(r=>{
+    const nome=String(cols(r,"Motorista","Condutor","Caminhoneiro")||"Sem motorista").trim();
+    if(!driverGeral[nome])driverGeral[nome]={geo:0,fra:0,nfs:new Set(),dias:new Set(),nfsDia:new Set()};
+    driverGeral[nome].geo+=parseNum(cols(r,"Florestal M3","Florestal m3"));
+    driverGeral[nome].fra+=parseNum(cols(r,"Comercial M3","Comercial m3"));
+    const nf=String(cols(r,"NF","Nf","Nota Fiscal")||"").trim();
+    const dk=dateKey(cols(r,...mn));
+    if(nf){driverGeral[nome].nfs.add(nf);if(dk)driverGeral[nome].dias.add(dk);if(dayM&&dk===dayM)driverGeral[nome].nfsDia.add(nf);}
+  });
+  const dgRows=Object.entries(driverGeral).map(([nome,v])=>({nome,viagens:v.nfs.size,viagensDia:v.nfsDia.size,dias:v.dias.size,media:v.dias.size?v.nfs.size/v.dias.size:0,geo:v.geo,fra:v.fra})).sort((a,b)=>b.viagens-a.viagens||b.viagensDia-a.viagensDia||a.nome.localeCompare(b.nome,"pt-BR"));
+  let dgt=`<table><tr><th>Motorista</th><th>Viagens Totais</th><th>Viagens em ${dateLabel(dayM)}</th><th>Dias Transportados</th><th>Média Viagens/Dia</th><th>Volume Geo m³</th><th>Volume Francon m³</th></tr>`;
+  dgRows.forEach(x=>dgt+=`<tr><td><b>${esc(x.nome)}</b></td><td><b>${fmt(x.viagens)}</b></td><td><b>${fmt(x.viagensDia)}</b></td><td>${fmt(x.dias)}</td><td><b>${fmt(x.media)}</b></td><td>${m3(x.geo)}</td><td>${m3(x.fra)}</td></tr>`);
+  const totalDG=dgRows.reduce((a,x)=>{a[0]+=x.geo;a[1]+=x.fra;return a},[0,0]); dgt+=`<tr><td colspan="5" style="text-align:right;font-weight:900">TOTAL GERAL</td><td style="font-weight:900;color:#37e879">${m3(totalDG[0])}</td><td style="font-weight:900;color:#ffd43b">${m3(totalDG[1])}</td></tr></table>`; E("mDriverGeral").innerHTML=dgRows.length?dgt:"Nenhum dado geral de motorista encontrado.";
+
+  // Não inventa ligação por NF: a planilha atual de ROMANEIO não possui NF.
+  const roHasNF=ro.some(r=>String(cols(r,"NF","Nf","Nota Fiscal","Nº NF","Numero NF")||"").trim());
+
+
+  // Viagens ficam como indicador geral e dentro de MOTORISTA; nunca no ranking de romaneadores.
+  E("gTrips").textContent=fmt(nfs.length);
+  E("gTripsAvg").textContent="";
+
+  // DERRUBA + corte não efetuado.
+  const dranks=rank(dl,["Motosserista Corte","Motoserrista Corte","Motosserrista","Motosserista","Motoserrista"]);
+  const dranksGeneral=rank(dr,["Motosserista Corte","Motoserrista Corte","Motosserrista","Motosserista","Motoserrista"]);
+  const pod=dranksGeneral.slice(0,3);
+  E("ddPodium").innerHTML=pod.map((x,i)=>`<div class="place">${["🥇","🥈","🥉"][i]} ${esc(x[0])}<b>${fmt(x[1])}</b></div>`).join("")||'<div class="place">Nenhum dado</div>';
+  E("ddPeople").textContent=fmt(arrUnique(dr.map(r=>cols(r,"Motosserista Corte","Motoserrista Corte","Motosserrista","Motosserista","Motoserrista"))).length);
+  E("ddTotal").textContent=fmt(dr.length); E("ddTrees").textContent=fmt(dr.length);
+  E("ddSpecies").textContent=fmt(arrUnique(dr.map(r=>cols(r,"Espécie","Espécie (Nome Comum)","Especie"))).length);
+  E("ddUT").textContent=fmt(arrUnique(dr.map(r=>cols(r,"UT"))).length);
+  E("ddLastProd").textContent=fmt(dl.length); E("ddLastTrees").textContent=fmt(dl.length); E("ddLastFirst").textContent=dranks[0]?.[0]||"—"; E("ddDate").textContent=dateLabel(dayD);
+  const reasons={},sit={OCA:0,FINA:0,APP:0,OUTROS:0}; nd.forEach(r=>{const x=String(cols(r,"Motivo","Motivo Corte","Motivo do Corte")||"Sem motivo").trim();reasons[x]=(reasons[x]||0)+1;const n=norm(x);if(n.includes("oca"))sit.OCA++;else if(n.includes("fina")||n.includes("sub cap")||n.includes("sub_cap")||n.includes("sub-cap"))sit.FINA++;else if(n.includes("app"))sit.APP++;else sit.OUTROS++;});
+  E("ddOca").textContent=fmt(sit.OCA); E("ddFina").textContent=fmt(sit.FINA); E("ddApp").textContent=fmt(sit.APP); E("ddOutros").textContent=fmt(sit.OUTROS); E("ddPie").innerHTML=svgPie(Object.entries(sit));
+  let reasonHtml='<table><tr><th>Situação / Motivo</th><th>Árvores</th></tr>'; Object.entries(reasons).sort((a,b)=>b[1]-a[1]).forEach(([n,q])=>reasonHtml+=`<tr><td>${esc(n)}</td><td><b>${fmt(q)}</b></td></tr>`); reasonHtml+='</table>';
+  E("ddReasons").innerHTML=nd.length?reasonHtml:"Nenhum corte não efetuado encontrado.";
+
+  const dm={}; dr.forEach(r=>{const k=dateKey(cols(r,...dn));if(k)dm[k]=(dm[k]||0)+1});
+  E("dailyChart").innerHTML=svgLine(Object.entries(dm).sort((a,b)=>a[0].localeCompare(b[0]))); setTimeout(()=>{const c=E("dailyChart");if(c)c.scrollLeft=c.scrollWidth;},0);
+  let lastOps='<div style="margin-bottom:10px">'+(window.innerWidth<=800?svgBarsMobile(dranks,"Produção dos derrubadores — última data"):svgBars(dranks,"Produção dos derrubadores — última data")).replaceAll('#7c2bef','#08d675')+'</div>';
+  E("workerChart").innerHTML=dranks.length?lastOps:"Nenhuma produção encontrada na última data.";
+  E("speciesChart").innerHTML=svgBars(rank(dr,["Espécie","Espécie (Nome Comum)","Especie"]).slice(0,15),"Árvores derrubadas por espécie");
+  E("ddGeneralOperators").innerHTML=tableRank(dranksGeneral,"árvores no total");
+
+  const groups={}; dl.forEach(r=>{const nome=String(cols(r,"Motosserista Corte","Motoserrista Corte","Motosserrista","Motosserista","Motoserrista")||"Sem nome").trim(),ut=String(cols(r,"UT")||"Sem UT").trim(),esp=String(cols(r,"Espécie","Especie")||"Sem espécie").trim(),cat=String(cols(r,"Categoria")||"Sem categoria").trim();const k=nome+"|||"+ut+"|||"+esp+"|||"+cat;groups[k]=(groups[k]||0)+1;});
+  const people={}; Object.entries(groups).forEach(([k,q])=>{const [n,u,e,c]=k.split("|||");(people[n]??=[]).push({u,e,c,q})});
+  let det=""; Object.keys(people).forEach(n=>{det+=`<div style="margin:10px 0"><b>${esc(n)}</b><table><tr><th>UT</th><th>Espécie</th><th>Categoria</th><th>Quantidade</th></tr>`;people[n].sort((a,b)=>b.q-a.q).forEach(x=>det+=`<tr><td>${esc(x.u)}</td><td>${esc(x.e)}</td><td>${esc(x.c)}</td><td><b>${fmt(x.q)}</b></td></tr>`);det+="</table></div>";});
+  E("ddDetails").innerHTML=det||"Nenhum detalhe encontrado.";
+}
+
+
+async function loadSheetJS(){
+  if(window.XLSX) return window.XLSX;
+  const urls=["https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js","https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"];
+  for(const src of urls){try{await new Promise((resolve,reject)=>{const sc=document.createElement("script");sc.src=src;sc.onload=resolve;sc.onerror=reject;document.head.appendChild(sc)});if(window.XLSX)return window.XLSX}catch(e){}}
+  return null;
+}
+async function readWorkbookRobust(file){
+  if(!file || !file.size) throw Error("O arquivo está vazio ou não foi selecionado.");
+  const lib=await loadSheetJS();
+  if(lib){const buf=await file.arrayBuffer();const wb=lib.read(buf,{type:"array",cellDates:true,cellNF:false,cellText:false});const out={};wb.SheetNames.forEach(name=>{out[name]=lib.utils.sheet_to_json(wb.Sheets[name],{defval:"",raw:true})});if(Object.keys(out).length){const kb=n=>Object.keys(out).find(k=>norm(k)===norm(n));const kd=kb("derruba");if(kd)out.DERRUBA=out[kd];const ks=kb("SKKIDER")||kb("SKIDER");if(ks)out.SKIDER=out[ks];const kr=kb("romaneio");if(kr)out.ROMANEIO=out[kr];const km=kb("MOTORIOSTA")||kb("MOTORISTA");if(km)out.MOTORISTA=out[km];const kn=kb("derruba corte nao efetuado")||kb("corte nao efetuado");if(kn)out["CORTE NÃO EFETUADO"]=out[kn];return out;}}
+  if(/\.xls$/i.test(file.name) && !/\.xlsx$|\.xlsm$/i.test(file.name)) throw Error("Arquivo .XLS antigo: salve como .XLSX no Excel para importar.");
+  return await readWorkbook(file);
+}
+const DB_NAME="APP_DERRUBA_DB_V4", DB_STORE="estado";
+function idbOpen(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>r.result.createObjectStore(DB_STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function idbPut(key,val){const db=await idbOpen();return new Promise((res,rej)=>{const tx=db.transaction(DB_STORE,"readwrite");tx.objectStore(DB_STORE).put(val,key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
+async function idbGet(key){const db=await idbOpen();return new Promise((res,rej)=>{const tx=db.transaction(DB_STORE,"readonly");const r=tx.objectStore(DB_STORE).get(key);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+function saveFastSnapshot(){
+  try{
+    const pages={};
+    document.querySelectorAll('.page').forEach(p=>pages[p.id]=p.innerHTML);
+    localStorage.setItem('nobre_fast_snapshot',JSON.stringify({pages,at:new Date().toISOString()}));
+  }catch(e){console.warn('snapshot',e)}
+}
+function restoreFastSnapshot(){
+  try{
+    const raw=localStorage.getItem('nobre_fast_snapshot'); if(!raw)return false;
+    const snap=JSON.parse(raw); let ok=false;
+    Object.entries(snap.pages||{}).forEach(([id,html])=>{const p=document.getElementById(id);if(p&&html){p.innerHTML=html;ok=true;}});
+    return ok;
+  }catch(e){return false}
+}
+const NOBRE_SYNC_URL='https://script.google.com/macros/s/AKfycbwNTe5rQdMcr60gQ5yim85pWPOtKnJGz2XZpknTE8ZrfO9YDr_76sz2bYV9MdSsxf8Z/exec';
+
+async function enviarNobreParaServidor(dados){
+  const payload=JSON.stringify({dados});
+  // text/plain evita preflight/CORS ao abrir o HTML diretamente no Windows.
+  await fetch(NOBRE_SYNC_URL,{
+    method:"POST",
+    mode:"no-cors",
+    headers:{"Content-Type":"text/plain;charset=utf-8"},
+    body:payload
+  });
+  localStorage.setItem("nobre_last_sync",new Date().toISOString());
+  return true;
+}
+
+async function handleExcel(file){
+  if(!file)return;
+  const st=E("status"); if(st) st.textContent="1/3 — Lendo o arquivo Excel...";
+  try{
+    const data=await readWorkbookRobust(file);
+    if(st) st.textContent="2/3 — Atualizando as abas...";
+    Object.keys(S).forEach(k=>delete S[k]); Object.assign(S,data); update(); saveFastSnapshot();
+    if(st) st.textContent="3/3 — Salvando a última planilha...";
+    try{localStorage.setItem("nobre_last_sheets",JSON.stringify(S));localStorage.setItem("nobre_last_meta",JSON.stringify({name:file.name,at:new Date().toISOString()}))}catch(cacheErr){console.warn(cacheErr)}
+    try{await idbPut("sheets",S);await idbPut("meta",{name:file.name,at:new Date().toISOString()})}catch(saveErr){console.warn(saveErr)}
+    if(st) st.textContent="4/4 — Enviando atualização para os celulares...";
+    let syncOk=false;
+    try{await enviarNobreParaServidor(S);syncOk=true}catch(syncErr){console.warn("Sincronização:",syncErr)}
+    const realSheets=Object.keys(data).filter(k=>!['DERRUBA','SKIDER','ROMANEIO','MOTORISTA','CORTE NÃO EFETUADO','MOTORISTA_RANKING','VIAGENS'].includes(k));
+    if(st) st.innerHTML='<span class="ok">✓ Planilha carregada:</span> '+esc(file.name)+' — '+realSheets.length+' abas lidas'+(syncOk?' <span class="ok">• enviada para sincronização</span>':' <span class="warn">• não foi possível enviar ao servidor</span>');
+    if(E("sheetStatus"))E("sheetStatus").textContent="Abas lidas: "+realSheets.join(" • ");
+  }catch(err){console.error(err);if(st) st.innerHTML='<span class="warn">Erro ao ler a planilha:</span> '+esc(err?.message||String(err));}
+}
+window.addEventListener("DOMContentLoaded",async()=>{
+  // ABERTURA RÁPIDA: se já existe uma tela salva, apenas restaura essa tela.
+  // A planilha NÃO é relida nem os cálculos são refeitos ao fechar/abrir o app.
+  // Nova leitura/processamento acontece somente quando o usuário seleciona outra planilha.
+  const hadSnapshot=restoreFastSnapshot();
+  const fileInput=E("file"); if(fileInput) fileInput.addEventListener("change",e=>handleExcel(e.target.files?.[0]));
+  if(hadSnapshot){
+    try{
+      const meta=JSON.parse(localStorage.getItem("nobre_last_meta")||"null");
+      const st=document.getElementById("status");
+      if(st) st.innerHTML='<span class="ok">✓ Última atualização carregada</span>'+(meta?.name?' — '+esc(meta.name):'');
+    }catch(e){}
+    return;
+  }
+  // Compatibilidade com quem ainda não possui snapshot: usa o cache uma única vez
+  // e cria o snapshot para as próximas aberturas.
+  let loaded=false;
+  try{
+    const raw=localStorage.getItem("nobre_last_sheets");
+    if(raw){
+      Object.keys(S).forEach(k=>delete S[k]);
+      Object.assign(S,JSON.parse(raw));
+      update(); saveFastSnapshot(); loaded=true;
+    }
+  }catch(e){}
+  if(!loaded){
+    try{
+      const saved=await idbGet("sheets");
+      const meta=await idbGet("meta");
+      if(saved){
+        Object.keys(S).forEach(k=>delete S[k]); Object.assign(S,saved);
+        update(); saveFastSnapshot(); loaded=true;
+        try{localStorage.setItem("nobre_last_sheets",JSON.stringify(S));localStorage.setItem("nobre_last_meta",JSON.stringify(meta||{}))}catch(e){}
+      }
+    }catch(e){}
+  }
+  if(!loaded){Object.assign(S,INITIAL_DATA);update();saveFastSnapshot();}
+  const st=document.getElementById("status");
+  if(st) st.innerHTML='<span class="ok">✓ Dados disponíveis</span>';
+});
+</script>
+
+<script>
+(function(){
+ const geral=document.getElementById('geral'), up=document.querySelector('.upload');
+ if(geral&&up){geral.appendChild(up); up.classList.add('desktop-only');}
+ if(geral&&!document.querySelector('.sync-approved')){const d=document.createElement('div');d.className='sync-approved desktop-only';d.innerHTML='<b>☁️ SINCRONIZAÇÃO PC → CELULAR</b><div class="small" style="margin:7px">Servidor NOBRE configurado. Ao carregar uma planilha nova, os dados serão enviados automaticamente para os celulares.</div><div class="small ok">✓ SINCRONIZAÇÃO NOBRE ATIVA</div>';geral.appendChild(d);}
+ const unwanted=document.getElementById('ddDetails'); if(unwanted){const bar=unwanted.previousElementSibling;if(bar)bar.remove();unwanted.remove();}
+})();
+</script>
+<script id="nobre-mobile-sync-final">
+const NOBRE_MOBILE_SYNC_URL='https://script.google.com/macros/s/AKfycbwNTe5rQdMcr60gQ5yim85pWPOtKnJGz2XZpknTE8ZrfO9YDr_76sz2bYV9MdSsxf8Z/exec';let nobreMobileSyncBusy=false;
+async function nobreMobileSyncFinal(){if(nobreMobileSyncBusy||!navigator.onLine)return;nobreMobileSyncBusy=true;try{const r=await fetch(NOBRE_MOBILE_SYNC_URL+'?_='+Date.now(),{cache:'no-store',redirect:'follow'});const p=await r.json();if(!p||p.ok!==true||p.temDados!==true||!p.dados)return;const v=String(p.versao||p.atualizadoEm||'');if(v&&localStorage.getItem('nobre_mobile_server_version')===v)return;Object.keys(S).forEach(k=>delete S[k]);Object.assign(S,p.dados);update();try{saveFastSnapshot()}catch(e){}try{localStorage.setItem('nobre_last_sheets',JSON.stringify(S));localStorage.setItem('nobre_mobile_server_version',v)}catch(e){}try{await idbPut('sheets',S)}catch(e){}}catch(e){}finally{nobreMobileSyncBusy=false}}
+window.addEventListener('DOMContentLoaded',()=>setTimeout(nobreMobileSyncFinal,2500));window.addEventListener('online',nobreMobileSyncFinal);document.addEventListener('visibilitychange',()=>{if(!document.hidden)nobreMobileSyncFinal()});setInterval(nobreMobileSyncFinal,300000);
+</script>
 </body>
 </html>
