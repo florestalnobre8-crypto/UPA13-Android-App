@@ -153,6 +153,21 @@ nav button{min-width:0!important;width:100%!important;padding:8px 1px!important;
 }
 </style>
 
+
+<style id="nobre-mobile-performance-v3">
+@media(max-width:800px){
+  /* Renderiza o conteúdo pesado somente quando entra na área visível */
+  .page.active .card,.page.active .panel,.page.active .chart-panel,.page.active .podium-list,.page.active .podium-info{
+    content-visibility:auto;
+    contain-intrinsic-size:180px;
+  }
+  #workerChart,#sSkiderOverallChart{content-visibility:visible!important;contain-intrinsic-size:auto!important;padding:12px!important}
+  #workerChart svg,#sSkiderOverallChart svg{width:100%!important;max-width:100%!important;height:auto!important}
+  /* Menos trabalho gráfico no WebView durante a rolagem */
+  body{background:#041426!important}
+  .card,#derruba .panel,#derruba .chart-panel,#derruba .podium-list,#derruba .podium-info{box-shadow:none!important}
+}
+</style>
 </head>
 <body>
 <header>
@@ -547,17 +562,17 @@ function svgBars(items,title){
 function svgBarsMobile(items,title){
   if(!items.length)return'<div class="empty">Sem dados.</div>';
   const max=Math.max(...items.map(x=>x[1]),1);
-  const w=360,left=145,right=35,rh=36,top=title?28:8,bottom=10;
+  const w=390,left=158,right=38,rh=43,top=title?32:10,bottom=12;
   const h=top+items.length*rh+bottom;
   let s=`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMinYMin meet">`;
-  if(title)s+=`<text x="3" y="17" fill="#dce6f2" font-size="10.5" font-weight="800">${esc(title)}</text>`;
+  if(title)s+=`<text x="3" y="17" fill="#dce6f2" font-size="12" font-weight="800">${esc(title)}</text>`;
   items.forEach((x,i)=>{
-    const y=top+i*rh,bh=14,x0=left;
+    const y=top+i*rh,bh=17,x0=left;
     const bw=Math.max(3,(w-left-right)*x[1]/max),x1=x0+bw,r=7;
     const d=`M ${x0} ${y} H ${Math.max(x0,x1-r)} Q ${x1} ${y} ${x1} ${y+r} V ${y+bh-r} Q ${x1} ${y+bh} ${Math.max(x0,x1-r)} ${y+bh} H ${x0} Z`;
-    s+=`<text x="2" y="${y+11}" fill="#f5f8ff" font-size="9.2" font-weight="800">${esc(x[0])}</text>`;
+    s+=`<text x="2" y="${y+11}" fill="#f5f8ff" font-size="10.8" font-weight="800">${esc(x[0])}</text>`;
     s+=`<path d="${d}" fill="#20d56b"/>`;
-    s+=`<text x="${Math.min(w-27,x1+4)}" y="${y+11}" fill="#fff" font-size="9.5" font-weight="900">${fmt(x[1])}</text>`;
+    s+=`<text x="${Math.min(w-27,x1+4)}" y="${y+11}" fill="#fff" font-size="11" font-weight="900">${fmt(x[1])}</text>`;
   });
   return s+"</svg>";
 }
@@ -877,8 +892,111 @@ window.addEventListener("DOMContentLoaded",async()=>{
 </script>
 <script id="nobre-mobile-sync-final">
 const NOBRE_MOBILE_SYNC_URL='https://script.google.com/macros/s/AKfycbwNTe5rQdMcr60gQ5yim85pWPOtKnJGz2XZpknTE8ZrfO9YDr_76sz2bYV9MdSsxf8Z/exec';let nobreMobileSyncBusy=false;
-async function nobreMobileSyncFinal(){if(nobreMobileSyncBusy||!navigator.onLine)return;nobreMobileSyncBusy=true;try{const r=await fetch(NOBRE_MOBILE_SYNC_URL+'?_='+Date.now(),{cache:'no-store',redirect:'follow'});const p=await r.json();if(!p||p.ok!==true||p.temDados!==true||!p.dados)return;const v=String(p.versao||p.atualizadoEm||'');if(v&&localStorage.getItem('nobre_mobile_server_version')===v)return;Object.keys(S).forEach(k=>delete S[k]);Object.assign(S,p.dados);update();try{saveFastSnapshot()}catch(e){}try{localStorage.setItem('nobre_last_sheets',JSON.stringify(S));localStorage.setItem('nobre_mobile_server_version',v)}catch(e){}try{await idbPut('sheets',S)}catch(e){}}catch(e){}finally{nobreMobileSyncBusy=false}}
-window.addEventListener('DOMContentLoaded',()=>setTimeout(nobreMobileSyncFinal,2500));window.addEventListener('online',nobreMobileSyncFinal);document.addEventListener('visibilitychange',()=>{if(!document.hidden)nobreMobileSyncFinal()});setInterval(nobreMobileSyncFinal,300000);
+async function nobreMobileSyncFinal(force=false){if(nobreMobileSyncBusy||!navigator.onLine)return;const now=Date.now(),last=Number(localStorage.getItem('nobre_mobile_last_check')||0);if(!force&&last&&now-last<600000)return;nobreMobileSyncBusy=true;try{localStorage.setItem('nobre_mobile_last_check',String(now));const r=await fetch(NOBRE_MOBILE_SYNC_URL+'?_='+now,{cache:'no-store',redirect:'follow'});const p=await r.json();if(!p||p.ok!==true||p.temDados!==true||!p.dados)return;const v=String(p.versao||p.atualizadoEm||'');if(v&&localStorage.getItem('nobre_mobile_server_version')===v)return;Object.keys(S).forEach(k=>delete S[k]);Object.assign(S,p.dados);requestAnimationFrame(()=>{update();try{saveFastSnapshot()}catch(e){}});try{localStorage.setItem('nobre_mobile_server_version',v)}catch(e){}try{await idbPut('sheets',S)}catch(e){}}catch(e){}finally{nobreMobileSyncBusy=false}}
+window.addEventListener('DOMContentLoaded',()=>setTimeout(()=>nobreMobileSyncFinal(false),10000));window.addEventListener('online',()=>nobreMobileSyncFinal(true));document.addEventListener('visibilitychange',()=>{if(!document.hidden)nobreMobileSyncFinal(false)});setInterval(()=>nobreMobileSyncFinal(false),600000);
 </script>
+
+<style id="pc-saldo-transporte-v5">
+#transportBalanceV5{margin:18px 0 8px;border:1px solid #1b628c;background:linear-gradient(135deg,#082b47,#093653);border-radius:12px;padding:16px;box-shadow:0 8px 24px #0003}
+#transportBalanceV5 .tb-title{font-size:20px;font-weight:900;margin-bottom:12px;color:#fff}
+#transportBalanceV5 .tb-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+#transportBalanceV5 .tb-card{background:#072943;border:1px solid #155476;border-radius:10px;padding:13px;min-height:98px}
+#transportBalanceV5 .tb-label{font-size:12px;font-weight:900;color:#b9cee0;line-height:1.25}
+#transportBalanceV5 .tb-value{font-size:24px;font-weight:900;margin-top:8px;color:#fff}
+#transportBalanceV5 .tb-card.restante .tb-value{color:#39e983}
+#transportBalanceV5 .tb-card.transportado .tb-value{color:#59c8ff}
+#transportBalanceV5 .tb-card.previsao .tb-value{font-size:20px;color:#ffd43b}
+#transportBalanceV5 .tb-small{font-size:11px;color:#9eb8d0;margin-top:5px}
+@media(max-width:1000px) and (min-width:801px){#transportBalanceV5 .tb-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:800px){#transportBalanceV5{display:none!important}}
+</style>
+<script id="pc-saldo-transporte-v5-script">
+(function(){
+  function sheetFrom(data,aliases){
+    const keys=Object.keys(data||{});
+    for(const a of aliases){const k=keys.find(x=>norm(x)===norm(a));if(k)return Array.isArray(data[k])?data[k]:[];}
+    for(const a of aliases){const k=keys.find(x=>norm(x).includes(norm(a))||norm(a).includes(norm(x)));if(k)return Array.isArray(data[k])?data[k]:[];}
+    return [];
+  }
+  function getStoredData(){
+    try{
+      if(typeof S==='object' && Object.keys(S).length)return S;
+      const raw=localStorage.getItem('nobre_last_sheets');
+      return raw?JSON.parse(raw):{};
+    }catch(e){return {}}
+  }
+  function addDaysLabel(baseKey,days){
+    if(!baseKey||!Number.isFinite(days)||days<0)return '—';
+    const d=new Date(baseKey+'T12:00:00');
+    if(isNaN(d))return '—';
+    d.setDate(d.getDate()+Math.ceil(days));
+    return d.toLocaleDateString('pt-BR');
+  }
+  function renderTransportBalanceV5(){
+    const page=document.getElementById('motorista');
+    if(!page)return;
+    let box=document.getElementById('transportBalanceV5');
+    if(!box){
+      box=document.createElement('div');
+      box.id='transportBalanceV5';
+    }
+    // Mantém todo o restante igual e coloca somente este quadro no FINAL da aba MOTORISTA.
+    // appendChild também reposiciona o quadro caso uma tela antiga salva o restaure em outro ponto.
+    page.appendChild(box);
+    const data=getStoredData();
+    const ro=sheetFrom(data,['ROMANEIO','BASE_METRAGEM','romaneio']);
+    const mt=sheetFrom(data,['MOTORISTA','MOTORIOSTA','motorista','motoriosta','VIAGENS_NF','VIAGENS']);
+    const totalGeo=ro.reduce((a,r)=>a+parseNum(cols(r,'Volume Geométrico (m³)','Volume Geométrico','Volume Geometrico','Geométrico')),0);
+    const totalFra=ro.reduce((a,r)=>a+parseNum(cols(r,'Volume francon (m³)','Volume Francon (m³)','Volume Francon','Volume Francon (m3)','Francon')),0);
+    const transGeo=mt.reduce((a,r)=>a+parseNum(cols(r,'Florestal M3','Florestal m3')),0);
+    const transFra=mt.reduce((a,r)=>a+parseNum(cols(r,'Comercial M3','Comercial m3')),0);
+    const saldoGeo=Math.max(0,totalGeo-transGeo);
+    const saldoFra=Math.max(0,totalFra-transFra);
+    const dnames=['Data','Data Movimento','Data Movimentação'];
+    const dias=arrUnique(mt.map(r=>dateKey(cols(r,...dnames))).filter(Boolean));
+    const qtdDias=dias.length;
+    const mediaGeo=qtdDias?transGeo/qtdDias:0;
+    const mediaFra=qtdDias?transFra/qtdDias:0;
+    const faltamGeo=mediaGeo>0?Math.ceil(saldoGeo/mediaGeo):null;
+    const faltamFra=mediaFra>0?Math.ceil(saldoFra/mediaFra):null;
+    const lastDay=dias.length?[...dias].sort().at(-1):'';
+    const prevGeo=faltamGeo===null?'—':addDaysLabel(lastDay,faltamGeo);
+    const prevFra=faltamFra===null?'—':addDaysLabel(lastDay,faltamFra);
+    // Se a abertura/atualização ainda não carregou as planilhas, mantém na tela
+    // o último SALDO DE TRANSPORTE válido em vez de mostrar tudo zerado.
+    const semDados=ro.length===0 && mt.length===0;
+    if(semDados){
+      try{
+        const ultimo=localStorage.getItem('nobre_transport_balance_last_html');
+        if(ultimo){box.innerHTML=ultimo;return;}
+      }catch(e){}
+    }
+    box.innerHTML=`
+      <div class="tb-title">📦 SALDO DE TRANSPORTE — GEO / FRANCON</div>
+      <div class="tb-grid">
+        <div class="tb-card"><div class="tb-label">GEO — TOTAL GERAL</div><div class="tb-value">${m3(totalGeo)} m³</div></div>
+        <div class="tb-card transportado"><div class="tb-label">GEO — JÁ TRANSPORTADO</div><div class="tb-value">${m3(transGeo)} m³</div></div>
+        <div class="tb-card restante"><div class="tb-label">GEO — RESTA TRANSPORTAR</div><div class="tb-value">${m3(saldoGeo)} m³</div></div>
+        <div class="tb-card previsao"><div class="tb-label">GEO — PREVISÃO DE TÉRMINO</div><div class="tb-value">${prevGeo}</div><div class="tb-small">Média: ${m3(mediaGeo)} m³/dia${faltamGeo===null?'':` • aprox. ${faltamGeo} dia(s)`}</div></div>
+        <div class="tb-card"><div class="tb-label">FRANCON — TOTAL GERAL</div><div class="tb-value">${m3(totalFra)} m³</div></div>
+        <div class="tb-card transportado"><div class="tb-label">FRANCON — JÁ TRANSPORTADO</div><div class="tb-value">${m3(transFra)} m³</div></div>
+        <div class="tb-card restante"><div class="tb-label">FRANCON — RESTA TRANSPORTAR</div><div class="tb-value">${m3(saldoFra)} m³</div></div>
+        <div class="tb-card previsao"><div class="tb-label">FRANCON — PREVISÃO DE TÉRMINO</div><div class="tb-value">${prevFra}</div><div class="tb-small">Média: ${m3(mediaFra)} m³/dia${faltamFra===null?'':` • aprox. ${faltamFra} dia(s)`}</div></div>
+      </div>`;
+    // Guarda a última atualização válida deste quadro para permanecer após fechar,
+    // reabrir ou durante uma atualização temporariamente sem dados.
+    if(ro.length || mt.length){
+      try{localStorage.setItem('nobre_transport_balance_last_html',box.innerHTML)}catch(e){}
+    }
+  }
+  window.renderTransportBalanceV5=renderTransportBalanceV5;
+  if(typeof update==='function'){
+    const oldUpdate=update;
+    update=function(){const r=oldUpdate.apply(this,arguments);try{renderTransportBalanceV5()}catch(e){console.warn(e)}return r;};
+  }
+  window.addEventListener('DOMContentLoaded',()=>{setTimeout(renderTransportBalanceV5,0);setTimeout(renderTransportBalanceV5,250);});
+})();
+</script>
+
 </body>
 </html>
